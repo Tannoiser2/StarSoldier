@@ -10,7 +10,6 @@ var main
 var config: Dictionary
 var eng: SSEngine
 var board: Board3D
-var viewport_c: SubViewportContainer
 var online: OnlineSession
 
 # pannelli
@@ -102,17 +101,9 @@ func _viewer_default() -> void:
 # ================================================================ costruzione
 
 func _build_ui() -> void:
-	viewport_c = SubViewportContainer.new()
-	viewport_c.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	viewport_c.stretch = true
-	viewport_c.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(viewport_c)
-	var vp := SubViewport.new()
-	vp.msaa_3d = Viewport.MSAA_2X
-	vp.handle_input_locally = false
-	viewport_c.add_child(vp)
+	# la scena 3D sta direttamente nella finestra (non in un SubViewport): così riceve mouse e tocco
 	board = Board3D.new()
-	vp.add_child(board)
+	add_child(board)
 	board.setup(eng, 0, str(config.get("style", "originale")))
 	board.gui_hit = func(sp): return _gui_hit(sp)
 	# barra in alto

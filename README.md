@@ -54,6 +54,7 @@ godot --headless --path . -s tests/salva_carica.gd             # un salvataggio 
 xvfb-run godot --path . -s tests/shot.gd -- 30 R originale 4 /tmp/foto.png 1 auto
 python3 tests/firebase_mock.py 8765                            # e tests/online_play.gd: partita online
 python3 tools/controlla_glifi.py                               # ogni carattere esiste nei font
+xvfb-run godot --path . -s tests/tocco.gd                     # tocco su iPad e mouse sulla mappa
 ```
 
 ## Pubblicazione
