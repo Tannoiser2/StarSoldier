@@ -775,7 +775,10 @@ func _refresh_marks() -> void:
 		c.queue_free()
 	var cr: Array = eng.craters.keys() if snap == null else snap["cr"]
 	for h in cr:
-		marks_root.add_child(_flat("cratere", int(h), 0.012, 0.8))
+		if style == "reborn":
+			marks_root.add_child(_crater3d(int(h)))
+		else:
+			marks_root.add_child(_flat("cratere", int(h), 0.012, 0.8))
 	var sm: Dictionary = eng.smoke if snap == null else snap["sm"]
 	for h in sm:
 		var k: String = sm[h]["k"]
@@ -856,6 +859,31 @@ func _flat(name: String, h: int, y: float, size: float, off := Vector3.ZERO) -> 
 	mi.material_override = m
 	mi.position = Hex.world(h) + off + Vector3(0, y, 0)
 	return mi
+
+
+func _crater3d(h: int) -> Node3D:
+	var n := Node3D.new()
+	var rim := MeshInstance3D.new()
+	var tm := TorusMesh.new()
+	tm.inner_radius = 0.3
+	tm.outer_radius = 0.48
+	tm.rings = 18
+	tm.ring_segments = 6
+	rim.mesh = tm
+	rim.scale = Vector3(1, 0.35, 1)
+	rim.material_override = M.mat(Color("#5a4632"), 0.0, 1.0)
+	n.add_child(rim)
+	var pit := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.34
+	cm.bottom_radius = 0.34
+	cm.height = 0.01
+	pit.mesh = cm
+	pit.position.y = 0.006
+	pit.material_override = M.mat(Color("#2a1e14"), 0.0, 1.0)
+	n.add_child(pit)
+	n.position = Hex.world(h) + Vector3(0, 0.02, 0)
+	return n
 
 
 func _smoke_cloud(h: int, dense: bool) -> Node3D:
