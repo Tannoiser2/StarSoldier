@@ -63,6 +63,7 @@ xvfb-run godot --path . -s tests/tocco.gd                     # tocco su iPad e 
 xvfb-run godot --path . -s tests/foto_fx.gd -- reborn /tmp/fx                  # jetpack, spari, bombe
 xvfb-run godot --path . -s tests/foto_unita.gd -- 38 A /tmp/u.png 3.2         # primo piano delle miniature
 godot --headless --path . -s tests/replay.gd -- 30 R                         # replay a momenti contemporanei
+xvfb-run godot --path . -s tests/foto_ui.gd -- 1920 1080 /tmp/ui 31 A 1      # menu e pannelli senza barre di scorrimento
 xvfb-run godot --path . -s tests/foto_miniature.gd                         # tutte le miniature in fila
 xvfb-run godot --path . -s tests/foto_citta.gd -- -3.5 7.9 9 -1.52 0 originale /tmp/c.png   # una zona della mappa 3D
 ```

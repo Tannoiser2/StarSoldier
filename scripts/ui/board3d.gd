@@ -49,6 +49,7 @@ var show_labels := true
 var snap = null                  # istantanea mostrata (replay) oppure null = stato attuale
 var replay_smooth := false      # nel replay le unità scivolano a velocità costante
 var replay_time := 0.45          # durata di un momento del replay
+var step_time := 0.35            # durata di un passo di movimento nel gioco (dipende dalla velocità)
 var unit_speed := {}
 var gui_hit: Callable            # la vista dice se un punto dello schermo è sopra un suo pannello
 var terr: SSTerrain               # rilievo del terreno
@@ -206,10 +207,8 @@ func _process(dt: float) -> void:
 			continue
 		var goal: Vector3 = unit_goal.get(id, n.position)
 		var step := goal - n.position
-		if replay_smooth:
-			n.position = n.position.move_toward(goal, float(unit_speed.get(id, 4.0)) * dt)
-		else:
-			n.position = n.position.lerp(goal, minf(1.0, dt * 7.0))
+		# velocità costante: arriva esattamente alla fine del passo, senza frenate fra un passo e l'altro
+		n.position = n.position.move_toward(goal, float(unit_speed.get(id, 4.0)) * dt)
 		# la miniatura si gira verso dove va
 		if style == "reborn" and Vector2(step.x, step.z).length() > 0.05:
 			var v: Node3D = n.get_node_or_null("vis")
@@ -646,7 +645,8 @@ func _refresh_units() -> void:
 				n.remove_meta("air")
 			var goal := _unit_pos(st["h"], st["alt"], i, ids.size())
 			# velocità per arrivare in tempo alla fine del momento del replay
-			unit_speed[id] = maxf(n.position.distance_to(goal) / maxf(replay_time * 0.85, 0.05), 0.5)
+			var tt := replay_time if replay_smooth else step_time
+			unit_speed[id] = maxf(n.position.distance_to(goal) / maxf(tt, 0.05), 0.5)
 			unit_goal[id] = goal
 			var lab: Label3D = n.get_node_or_null("etichetta")
 			if lab != null:
@@ -767,11 +767,12 @@ func _unit_node(u: Dictionary, st: Dictionary) -> Node3D:
 	lab.name = "etichetta"
 	lab.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	lab.no_depth_test = true
-	lab.fixed_size = true
-	lab.pixel_size = 0.0009
+	# grandezza nel mondo (non in pixel): da lontano si rimpiccioliscono con la mappa
+	lab.fixed_size = false
+	lab.pixel_size = 0.0034
 	lab.font = UI.font_head
-	lab.font_size = 17
-	lab.outline_size = 6
+	lab.font_size = 48
+	lab.outline_size = 14
 	lab.outline_modulate = Color(0, 0, 0, 0.85)
 	lab.position = Vector3(0, 0.8 if style == "reborn" else 0.5, 0)
 	lab.render_priority = 3
@@ -1140,6 +1141,9 @@ func play_fx(kind: String, d: Dictionary, speed := 1.0) -> void:
 			SSFx.explosion(fx_root, point(d["h"], 0) - Vector3(0, 0.2, 0), 1.3, true, 1.0 / speed, true)
 		"dead":
 			SSFx.explosion(fx_root, point(d["h"], d["alt"]) - Vector3(0, 0.1, 0), 0.45, false, 0.7 / speed, light)
+		"hm_move":
+			# il missile cercatore vola basso da un esagono all'altro con la scia
+			SSFx.lob(fx_root, point(d["from"], 0) - Vector3(0, 0.05, 0), point(d["to"], 0) - Vector3(0, 0.05, 0), 0.3 / speed, true, Callable())
 		"teleport", "found", "search", "hm_on":
 			var h: int = int(d.get("to", d.get("h", 0)))
 			if Hex.valid(h):

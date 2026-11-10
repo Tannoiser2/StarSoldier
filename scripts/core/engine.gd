@@ -1832,6 +1832,9 @@ func _movement() -> void:
 			await _move_missiles_round()
 			if over:
 				return
+		# un passo di tutti nello stesso momento: la vista li fa scivolare insieme
+		if moving:
+			await _pace(0.35)
 	# missili ancora attivi finiscono la corsa, poi l'ultimo fuoco d'opportunità (9.27)
 	for k in 12:
 		var any := false
@@ -1896,7 +1899,7 @@ func _step(u: Dictionary) -> bool:
 	_emit("move", {"id": u["id"], "from": from_h, "to": nh, "falt": from_alt, "talt": na})
 	_discover(u)
 	_check_missiles_for(u)
-	await _pace(0.12)
+	# niente pausa qui: si aspetta una volta per giro, così tutte le unità avanzano insieme
 	await _opportunity_all(false, u)
 	return true
 

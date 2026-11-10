@@ -41,7 +41,7 @@ func _ready() -> void:
 	var margin := MarginContainer.new()
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	for k in ["left", "right", "top", "bottom"]:
-		margin.add_theme_constant_override("margin_" + k, 34)
+		margin.add_theme_constant_override("margin_" + k, 22)
 	add_child(margin)
 	var hb := HBoxContainer.new()
 	hb.add_theme_constant_override("separation", 30)
@@ -49,7 +49,7 @@ func _ready() -> void:
 	# colonna sinistra: logo e scenari
 	var left := VBoxContainer.new()
 	left.custom_minimum_size.x = 560
-	left.add_theme_constant_override("separation", 10)
+	left.add_theme_constant_override("separation", 6)
 	hb.add_child(left)
 	var logo_row := HBoxContainer.new()
 	logo_row.add_theme_constant_override("separation", 16)
@@ -58,27 +58,28 @@ func _ready() -> void:
 	cov.texture = UI.tex("res://assets/misc/copertina.png")
 	cov.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	cov.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT
-	cov.custom_minimum_size = Vector2(150, 150)
+	cov.custom_minimum_size = Vector2(108, 108)
 	logo_row.add_child(cov)
 	var tv := VBoxContainer.new()
 	tv.alignment = BoxContainer.ALIGNMENT_CENTER
 	logo_row.add_child(tv)
-	tv.add_child(UI.title("StarSoldier", 70))
-	tv.add_child(UI.head("TACTICAL WARFARE IN THE 25TH CENTURY", 22, UI.INK))
-	tv.add_child(UI.label("SPI, 1977 · versione digitale", 17, UI.MUTED))
+	tv.add_theme_constant_override("separation", 0)
+	tv.add_child(UI.title("StarSoldier", 56))
+	tv.add_child(UI.head("TACTICAL WARFARE IN THE 25TH CENTURY", 19, UI.INK))
+	tv.add_child(UI.label("SPI, 1977 · versione digitale", 15, UI.MUTED))
 	left.add_child(UI.hsep(UI.SEPIA))
-	left.add_child(UI.head("SCENARI", 22, UI.RED_D))
+	left.add_child(UI.head("SCENARI", 19, UI.RED_D))
 	list_scroll = ScrollContainer.new()
 	list_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	list_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	left.add_child(list_scroll)
 	list_box = VBoxContainer.new()
-	list_box.add_theme_constant_override("separation", 6)
+	list_box.add_theme_constant_override("separation", 4)
 	list_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	list_scroll.add_child(list_box)
 	for s in SC.list():
 		var id := int(s["id"])
-		var b := UI.button("", 0, 58, 19)
+		var b := UI.button("", 0, 44, 18)
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		b.text = "%d d.C.   %s" % [s["anno"], s["nome"]]
 		if s.get("base", false):
@@ -96,25 +97,26 @@ func _ready() -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
 	left.add_child(row)
-	var br := UI.button("Regole", 0, 52, 19)
+	var br := UI.button("Regole", 0, 46, 17)
 	br.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	br.pressed.connect(func():
 		_store()
 		main.show_rules("regole"))
 	row.add_child(br)
-	var bt := UI.button("Tabelle", 0, 52, 19)
+	var bt := UI.button("Tabelle", 0, 46, 17)
 	bt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bt.pressed.connect(func():
 		_store()
 		main.show_rules("tabelle"))
 	row.add_child(bt)
-	var bl := UI.button("Carica partita", 0, 52, 19)
+	var bl := UI.button("Carica", 0, 46, 17)
 	bl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bl.pressed.connect(_load_panel)
 	row.add_child(bl)
-	var bj := UI.button("Entra in una partita online", 0, 52, 19)
+	var bj := UI.button("Entra online", 0, 46, 17)
+	bj.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bj.pressed.connect(_online_join_panel)
-	left.add_child(bj)
+	row.add_child(bj)
 	# colonna destra: dettagli
 	var right_panel := PanelContainer.new()
 	right_panel.add_theme_stylebox_override("panel", UI.panel_style(0.93))

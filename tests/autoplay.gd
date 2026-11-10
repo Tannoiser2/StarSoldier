@@ -25,7 +25,14 @@ func _init() -> void:
 					var tt := Time.get_ticks_msec()
 					await e.run()
 					n += 1
-					print("%d %s %s seme %d: turno %d, %s [%d ms] %s" % [s["id"], sit, str(m), 1000 + r * 7 + n - 1, e.turn, str(e.result.get("reason", "?")), Time.get_ticks_msec() - tt, e.score_text()])
+					# armi lanciate usate (per controllare che l'IA usi anche i missili cercatori)
+					var used := {}
+					for seg in e.history:
+						if seg["k"] == "launch":
+							used[seg.get("w", "?")] = int(used.get(seg.get("w", "?"), 0)) + 1
+						elif seg["k"] in ["hm_on", "hm_move"]:
+							used[seg["k"]] = int(used.get(seg["k"], 0)) + 1
+					print("%d %s %s seme %d: turno %d, %s [%d ms] %s %s" % [s["id"], sit, str(m), 1000 + r * 7 + n - 1, e.turn, str(e.result.get("reason", "?")), Time.get_ticks_msec() - tt, e.score_text(), str(used)])
 					e.queue_free()
 	print("Partite: %d in %d ms" % [n, Time.get_ticks_msec() - t0])
 	quit()

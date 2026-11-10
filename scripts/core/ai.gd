@@ -682,12 +682,18 @@ func _launch(eng: SSEngine, u: Dictionary, foes: Array, a: int, targets: Diction
 			var mid: Array = Hex.lines(u["h"], f2["h"])[0]
 			if not mid.is_empty():
 				best = {"w": "og", "h": mid[mid.size() / 2], "tp": 3, "hi": false}
-	if best.is_empty() and "hm" in ws and a >= 4 and rng.randf() < 0.2:
-		var f3 := _nearest(u["h"], foes)
+	# missile cercatore: il nemico più lontano raggiungibile (almeno 15 esagoni), anche se c'è già un
+	# altro bersaglio quando quello vale poco; resta in agguato e insegue chi gli passa vicino
+	if "hm" in ws and a >= 3 and (best.is_empty() or bv < 3.0) and rng.randf() < 0.55:
+		var bd3 := 0
+		var f3 := {}
+		for f in foes:
+			var d3 := Hex.dist(u["h"], f["h"])
+			if d3 >= 15 and d3 <= 5 * int(a) and d3 > bd3 and f["kind"] != "base":
+				bd3 = d3
+				f3 = f
 		if not f3.is_empty():
-			var d3 := Hex.dist(u["h"], f3["h"])
-			if d3 >= 15 and d3 <= 5 * a:
-				best = {"w": "hm", "h": f3["h"], "tp": maxi(3, int(ceil(float(d3) / 5.0))), "hi": false}
+			best = {"w": "hm", "h": f3["h"], "tp": maxi(3, int(ceil(float(bd3) / 5.0))), "hi": false}
 	return best
 
 

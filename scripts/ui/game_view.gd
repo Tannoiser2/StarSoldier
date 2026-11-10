@@ -83,6 +83,7 @@ func _ready() -> void:
 	board.hover_hex.connect(_on_hover)
 	_viewer_default()
 	board.reset_view()
+	board.step_time = 0.35 / maxf(eng.anim, 0.1)
 	_refresh()
 	if online != null:
 		online.heartbeat_loop()
@@ -157,19 +158,19 @@ func _build_ui() -> void:
 	right_panel.offset_top = 76
 	right_panel.offset_left = -440
 	right_panel.offset_right = -8
-	right_panel.offset_bottom = -330
+	right_panel.offset_bottom = -232
 	add_child(right_panel)
 	var rs := ScrollContainer.new()
 	rs.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	right_panel.add_child(rs)
 	right_box = VBoxContainer.new()
-	right_box.add_theme_constant_override("separation", 8)
+	right_box.add_theme_constant_override("separation", 5)
 	right_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	rs.add_child(right_box)
 	log_panel = PanelContainer.new()
 	log_panel.add_theme_stylebox_override("panel", UI.panel_style(0.98))
 	log_panel.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	log_panel.offset_top = -320
+	log_panel.offset_top = -222
 	log_panel.offset_left = -440
 	log_panel.offset_right = -8
 	log_panel.offset_bottom = -8
@@ -281,7 +282,7 @@ func _update_left() -> void:
 		if eng.sit == "P" and s == 0:
 			info.append("Usciti dal bordo della base: %d" % (int(sd["pts"]) / 10))
 		for line in info:
-			left_box.add_child(UI.wrap(UI.label(line, 15, UI.MUTED), 350))
+			left_box.add_child(UI.wrap(UI.label(line, 14, UI.MUTED), 350))
 		if not mine:
 			var known := 0
 			for u in eng.live(s):
@@ -290,74 +291,92 @@ func _update_left() -> void:
 			left_box.add_child(UI.label("Unità visibili sulla mappa: %d" % known, 15, UI.MUTED))
 			left_box.add_child(UI.hsep())
 			continue
+		# due colonne di schede compatte: entrano molte più unità senza scorrere
+		var grid := GridContainer.new()
+		grid.columns = 2
+		grid.add_theme_constant_override("h_separation", 4)
+		grid.add_theme_constant_override("v_separation", 4)
+		grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		left_box.add_child(grid)
 		for u in eng.units.values():
 			if u["side"] != s:
 				continue
-			left_box.add_child(_unit_row(u))
+			grid.add_child(_unit_row(u))
 		left_box.add_child(UI.hsep())
 
 
+## scheda compatta di un'unità: pedina, nome, punti; sotto la posizione. Eliminata: grigia e spenta.
 func _unit_row(u: Dictionary) -> Control:
 	var b := Button.new()
-	b.custom_minimum_size = Vector2(0, 56)
+	b.custom_minimum_size = Vector2(0, 44)
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	b.focus_mode = Control.FOCUS_NONE
 	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	b.clip_contents = true
 	var hb := HBoxContainer.new()
-	hb.add_theme_constant_override("separation", 8)
+	hb.add_theme_constant_override("separation", 5)
 	hb.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hb.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	hb.offset_left = 6
+	hb.offset_left = 4
+	hb.offset_right = -5
 	b.add_child(hb)
 	var tr := TextureRect.new()
 	tr.texture = board._counter_tex(u, u["alt"] > 0)
 	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	tr.custom_minimum_size = Vector2(44, 44)
+	tr.custom_minimum_size = Vector2(34, 34)
 	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hb.add_child(tr)
 	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", -3)
+	v.add_theme_constant_override("separation", -4)
+	v.alignment = BoxContainer.ALIGNMENT_CENTER
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hb.add_child(v)
 	var st := ""
 	if u["dead"]:
 		st = "eliminato"
 	elif u["exited"]:
-		st = "uscito dalla mappa"
+		st = "uscito"
 	elif not u["on"]:
-		st = "entra dal bordo %s" % eng._edge_name(u["entry"]) if u["entry"] != "" else "fuori mappa"
+		st = "entra da %s" % eng._edge_name(u["entry"]) if u["entry"] != "" else "fuori mappa"
 	else:
-		st = "%s · %s" % [Hex.label(u["h"]), eng.ALT_NAME[u["alt"]]]
+		st = "%s · %s" % [Hex.label(u["h"]), ["terra", "radente", "alta quota"][u["alt"]]]
 		if u["hidden"]:
-			st += " · nascosto"
-		if u["ind"]:
-			st += " · indipendente"
+			st += " · nasc."
 		if u["leader"]:
 			st += " · capo"
-	var name := "%s  %s" % [u["lab"], D.KIND_NAME.get(u["kind"], "")]
-	var l1 := UI.label(name, 16, UI.INK if alive_u(u) else UI.MUTED, UI.font_head)
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 4)
+	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(top)
+	var l1 := UI.label(u["lab"] if u["kind"] in ["ss", "hw", "an"] else D.KIND_NAME.get(u["kind"], u["lab"]), 15, UI.INK if alive_u(u) else UI.MUTED, UI.font_head)
 	l1.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	v.add_child(l1)
-	var l2 := UI.label(st, 14, UI.MUTED)
-	l2.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	v.add_child(l2)
-	var sp := Control.new()
-	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	sp.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hb.add_child(sp)
+	l1.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	l1.clip_text = true
+	top.add_child(l1)
 	var tp := "%d/%d" % [u["tpa"], u["tpa0"]]
 	if mode != "place" and seat == u["side"] and alive_u(u) and req.get("k", "") == "piano":
 		var t: Dictionary = draft.get("u", {}).get(u["id"], {})
-		tp = "%s / %d" % [_n(eng.task_cost(u, t)), eng.avail(u)]
-	var l3 := UI.mono(tp, 17, UI.RED_D if u["tpa"] < u["tpa0"] else UI.INK)
+		tp = "%s/%d" % [_n(eng.task_cost(u, t)), eng.avail(u)]
+	var l3 := UI.mono(tp, 14, UI.RED_D if u["tpa"] < u["tpa0"] else UI.INK)
 	l3.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hb.add_child(l3)
+	top.add_child(l3)
+	var l2 := UI.label(st, 12, UI.MUTED)
+	l2.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	l2.clip_text = true
+	v.add_child(l2)
 	if u["id"] == sel:
 		UI.toggled(b, true)
 		l1.add_theme_color_override("font_color", UI.PAPER_L)
 		l2.add_theme_color_override("font_color", UI.PAPER_D)
 		l3.add_theme_color_override("font_color", UI.PAPER_L)
+	b.tooltip_text = "%s %s · %s" % [u["lab"], D.KIND_NAME.get(u["kind"], ""), st]
 	b.disabled = not alive_u(u)
+	if not alive_u(u):
+		# eliminata o uscita: tutta la scheda grigia e spenta
+		b.modulate = Color(0.62, 0.62, 0.62, 0.55)
+		tr.self_modulate = Color(0.5, 0.5, 0.5, 1)
 	var id: String = u["id"]
 	b.pressed.connect(func(): _select(id, true))
 	return b
@@ -920,7 +939,7 @@ func _plot_panel(u: Dictionary) -> void:
 	var entering: bool = not u["on"]
 	# movimento
 	right_box.add_child(UI.hsep())
-	right_box.add_child(UI.head("MOVIMENTO", 18, UI.SEPIA))
+	right_box.add_child(UI.head("MOVIMENTO", 16, UI.SEPIA))
 	var mv: Array = t.get("mv", [])
 	var sp := eng.sim_path(u, mv, int(t.get("alt0", 1)) if entering else -1)
 	var path_txt := ""
@@ -937,7 +956,7 @@ func _plot_panel(u: Dictionary) -> void:
 	r1.add_theme_constant_override("h_separation", 6)
 	r1.add_theme_constant_override("v_separation", 6)
 	right_box.add_child(r1)
-	var bm := UI.toggled(UI.button("Traccia percorso", 0, 40, 16), mode == "mv")
+	var bm := UI.toggled(UI.button("Traccia percorso", 0, 34, 15), mode == "mv")
 	bm.pressed.connect(func():
 		mode = "mv" if mode != "mv" else ""
 		msg_lbl.text = "Tocca gli esagoni del percorso (anche lontani: il percorso più economico)." if mode == "mv" else ""
@@ -946,12 +965,12 @@ func _plot_panel(u: Dictionary) -> void:
 	if u["kind"] != "pl":
 		for a in [["T", "A terra"], ["R", "Volo radente"], ["A", "Alta quota"]]:
 			var aa: String = a[0]
-			var ba := UI.button(a[1], 0, 40, 16)
+			var ba := UI.button(a[1], 0, 34, 15)
 			if entering and mv.is_empty():
 				UI.toggled(ba, int(t.get("alt0", 1)) == eng.ALT_SHORT.find(aa))
 			ba.pressed.connect(func(): _add_alt(u, aa))
 			r1.add_child(ba)
-	var bu := UI.button("Annulla passo", 0, 40, 16)
+	var bu := UI.button("Annulla passo", 0, 34, 15)
 	bu.pressed.connect(func():
 		if not mv.is_empty():
 			mv.pop_back()
@@ -961,7 +980,7 @@ func _plot_panel(u: Dictionary) -> void:
 		_refresh())
 	r1.add_child(bu)
 	if not entering and sp["h"] > 0 and Hex.on_edge(sp["h"], "*") and (eng.sit in ["P", "B"]):
-		var be := UI.button("Esce dalla mappa", 0, 40, 16)
+		var be := UI.button("Esce dalla mappa", 0, 34, 15)
 		be.pressed.connect(func():
 			var c := 0.5 if sp["alt"] > 0 else 1.0
 			if c <= _avail_left(u, t) + 0.001:
@@ -983,19 +1002,19 @@ func _plot_panel(u: Dictionary) -> void:
 		return
 	# fuoco
 	right_box.add_child(UI.hsep())
-	right_box.add_child(UI.head("FUOCO", 18, UI.SEPIA))
+	right_box.add_child(UI.head("FUOCO", 16, UI.SEPIA))
 	var r2 := HFlowContainer.new()
 	r2.add_theme_constant_override("h_separation", 6)
 	r2.add_theme_constant_override("v_separation", 6)
 	right_box.add_child(r2)
-	var bdf := UI.toggled(UI.button("Fuoco diretto", 0, 40, 16), mode == "df")
+	var bdf := UI.toggled(UI.button("Fuoco diretto", 0, 34, 15), mode == "df")
 	bdf.pressed.connect(func():
 		mode = "df" if mode != "df" else ""
 		msg_lbl.text = "Tocca l'esagono bersaglio (colpisce tutti i nemici a quella quota)." if mode == "df" else ""
 		_refresh())
 	r2.add_child(bdf)
 	if u["kind"] != "hw":
-		var brf := UI.toggled(UI.button("Fuoco ristretto", 0, 40, 16), mode == "rf")
+		var brf := UI.toggled(UI.button("Fuoco ristretto", 0, 34, 15), mode == "rf")
 		brf.pressed.connect(func():
 			mode = "rf" if mode != "rf" else ""
 			msg_lbl.text = "Tocca il soldato nemico bersaglio." if mode == "rf" else ""
@@ -1003,7 +1022,7 @@ func _plot_panel(u: Dictionary) -> void:
 		r2.add_child(brf)
 	for a in 3:
 		var aa := a
-		var bq := UI.toggled(UI.button("Quota %s" % eng.ALT_SHORT[a], 0, 40, 15), df_alt == a)
+		var bq := UI.toggled(UI.button("Quota %s" % eng.ALT_SHORT[a], 0, 34, 14), df_alt == a)
 		bq.tooltip_text = "Quota del bersaglio per il fuoco diretto su un esagono senza nemici visibili"
 		bq.pressed.connect(func():
 			df_alt = aa
@@ -1038,7 +1057,7 @@ func _plot_panel(u: Dictionary) -> void:
 	var ws: Array = eng.weapons(u)
 	if not ws.is_empty():
 		right_box.add_child(UI.hsep())
-		right_box.add_child(UI.head("ARMI LANCIATE", 18, UI.SEPIA))
+		right_box.add_child(UI.head("ARMI LANCIATE", 16, UI.SEPIA))
 		var r3 := HFlowContainer.new()
 		r3.add_theme_constant_override("h_separation", 6)
 		r3.add_theme_constant_override("v_separation", 6)
@@ -1046,7 +1065,7 @@ func _plot_panel(u: Dictionary) -> void:
 		var wn := {"gpb": "Bomba guidata", "ffm": "Missili liberi", "og": "Granata opacizzante", "hm": "Missile cercatore", "nb": "Bomba al neutrone"}
 		for w in ws:
 			var ww: String = w
-			var bw := UI.toggled(UI.button(wn[w], 0, 40, 15), mode == "ln:" + w)
+			var bw := UI.toggled(UI.button(wn[w], 0, 34, 14), mode == "ln:" + w)
 			bw.pressed.connect(func():
 				mode = ("ln:" + ww) if mode != "ln:" + ww else ""
 				msg_lbl.text = "Tocca l'esagono bersaglio." if mode != "" else ""
@@ -1059,7 +1078,7 @@ func _plot_panel(u: Dictionary) -> void:
 				t["ln"].erase(ll))
 			right_box.add_child(row)
 			if l["w"] in ["gpb", "nb", "ffm"]:
-				var bh := UI.toggled(UI.button("Esplode in alta quota", 0, 36, 14), l.get("hi", false))
+				var bh := UI.toggled(UI.button("Esplode in alta quota", 0, 32, 13), l.get("hi", false))
 				bh.pressed.connect(func():
 					ll["hi"] = not ll.get("hi", false)
 					_refresh())
@@ -1070,7 +1089,7 @@ func _plot_panel(u: Dictionary) -> void:
 			if c["h"] != u["h"] or c["dead"]:
 				continue
 			if c["up"] and seat == 0:
-				var bs := UI.toggled(UI.button("Cerca nel segnalino (1 TP, senza muoversi)", 0, 40, 15), t.get("se", false))
+				var bs := UI.toggled(UI.button("Cerca nel segnalino (1 TP, senza muoversi)", 0, 34, 14), t.get("se", false))
 				bs.pressed.connect(func():
 					if t.get("se", false):
 						t.erase("se")
@@ -1081,7 +1100,7 @@ func _plot_panel(u: Dictionary) -> void:
 				right_box.add_child(bs)
 			elif not c["up"] and c["genuine"]:
 				var cid: String = c["id"]
-				var btr := UI.toggled(UI.button("Trasporta il civile (3 TP)", 0, 40, 15), str(t.get("tr", "")) == cid)
+				var btr := UI.toggled(UI.button("Trasporta il civile (3 TP)", 0, 34, 14), str(t.get("tr", "")) == cid)
 				btr.pressed.connect(func():
 					if str(t.get("tr", "")) == cid:
 						t.erase("tr")
@@ -1093,7 +1112,7 @@ func _plot_panel(u: Dictionary) -> void:
 	# cannone laser
 	if u["kind"] == "pl":
 		right_box.add_child(UI.hsep())
-		right_box.add_child(UI.head("CANNONE LASER (0 TP)", 18, UI.SEPIA))
+		right_box.add_child(UI.head("CANNONE LASER (0 TP)", 16, UI.SEPIA))
 		if not u["laser"]:
 			right_box.add_child(UI.label("Distrutto.", 15, UI.MUTED))
 		else:
@@ -1101,7 +1120,7 @@ func _plot_panel(u: Dictionary) -> void:
 			right_box.add_child(r4)
 			for k in [["lc", "Spara"], ["lcr", "Registra un esagono"]]:
 				var kk: String = k[0]
-				var bl := UI.toggled(UI.button(k[1], 0, 40, 15), mode == kk)
+				var bl := UI.toggled(UI.button(k[1], 0, 34, 14), mode == kk)
 				bl.pressed.connect(func():
 					mode = kk if mode != kk else ""
 					_refresh())
@@ -1118,12 +1137,12 @@ func _plot_panel(u: Dictionary) -> void:
 	var r5 := HBoxContainer.new()
 	r5.add_theme_constant_override("separation", 6)
 	right_box.add_child(r5)
-	var bai := UI.button("Suggerisci (computer)", 0, 42, 16)
+	var bai := UI.button("Suggerisci (computer)", 0, 36, 15)
 	bai.pressed.connect(func():
 		draft["u"][u["id"]] = eng.ais[seat].plan_unit(eng, u, eng.ais[seat]._known_foes(eng, seat))
 		_refresh())
 	r5.add_child(bai)
-	var bc := UI.button("Nessun compito", 0, 42, 16)
+	var bc := UI.button("Nessun compito", 0, 36, 15)
 	bc.pressed.connect(func():
 		draft["u"].erase(u["id"])
 		_refresh())
@@ -1146,13 +1165,13 @@ func _stepper(title: String, v: int, setter: Callable, refresh := true) -> Contr
 	var l := UI.label(title, 16)
 	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hb.add_child(l)
-	var bm := UI.button("-", 44, 38, 20)
+	var bm := UI.button("-", 40, 32, 18)
 	bm.pressed.connect(func():
 		setter.call(maxi(0, v - 1))
 		_refresh())
 	hb.add_child(bm)
 	hb.add_child(UI.mono("%d" % v, 20))
-	var bp := UI.button("+", 44, 38, 20)
+	var bp := UI.button("+", 40, 32, 18)
 	bp.pressed.connect(func():
 		var u: Dictionary = eng.units[sel]
 		if _avail_left(u, draft["u"].get(sel, {})) < 1.0:
@@ -1173,13 +1192,13 @@ func _task_row(title: String, v: int, hint: String, setter: Callable, remover: C
 	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	hb.add_child(l)
-	var bm := UI.button("-", 40, 36, 18)
+	var bm := UI.button("-", 36, 30, 16)
 	bm.pressed.connect(func():
 		setter.call(maxi(1, v - 1))
 		_refresh())
 	hb.add_child(bm)
 	hb.add_child(UI.mono("%d" % v, 18))
-	var bp := UI.button("+", 40, 36, 18)
+	var bp := UI.button("+", 36, 30, 16)
 	bp.pressed.connect(func():
 		var u: Dictionary = eng.units[sel]
 		if _avail_left(u, draft["u"].get(sel, {})) < 1.0:
@@ -1188,7 +1207,7 @@ func _task_row(title: String, v: int, hint: String, setter: Callable, remover: C
 		setter.call(v + 1)
 		_refresh())
 	hb.add_child(bp)
-	var bx := UI.button("Togli", 0, 36, 15)
+	var bx := UI.button("Togli", 0, 30, 14)
 	bx.pressed.connect(func():
 		remover.call()
 		_refresh())
@@ -1200,7 +1219,7 @@ func _task_row(title: String, v: int, hint: String, setter: Callable, remover: C
 
 func _orbital_panel() -> void:
 	right_box.add_child(UI.hsep(UI.RED))
-	right_box.add_child(UI.head("SUPPORTO ORBITALE", 18, UI.RED_D))
+	right_box.add_child(UI.head("SUPPORTO ORBITALE", 16, UI.RED_D))
 	var q: Dictionary = eng.sides[seat]["orb"]
 	var r := HFlowContainer.new()
 	r.add_theme_constant_override("h_separation", 6)
@@ -1213,7 +1232,7 @@ func _orbital_panel() -> void:
 			if o["t"] == kk:
 				used += 1
 		var left := int(q.get(kk, 0)) - used
-		var b := UI.toggled(UI.button("%s (%d)" % [k[1], left], 0, 40, 15), mode == "orb:" + kk)
+		var b := UI.toggled(UI.button("%s (%d)" % [k[1], left], 0, 34, 14), mode == "orb:" + kk)
 		b.disabled = left <= 0
 		b.pressed.connect(func():
 			mode = ("orb:" + kk) if mode != "orb:" + kk else ""
@@ -1505,7 +1524,7 @@ func _replay_groups() -> Array:
 		var c := "altro"
 		if k in ["move", "hm_move"]:
 			c = "mv"
-		elif k in ["fire", "orbital_laser", "launch", "intercept"]:
+		elif k in ["fire", "orbital_laser", "launch", "intercept", "hm_on"]:
 			c = "fuoco"
 		elif k in ["blast", "orbital", "scatter", "dead"]:
 			c = "boom"
@@ -1532,7 +1551,8 @@ func _replay_groups() -> Array:
 	if not cur.is_empty():
 		out.append([cur[0], cur[cur.size() - 1], cat])
 	for g in out:
-		g.append({"mv": 0.45, "fuoco": 0.9, "boom": 1.1}.get(g[2], 0.3))
+		# i momenti senza nulla da vedere (fine stadio, piani pronti...) non fanno pausa
+		g.append({"mv": 0.4, "fuoco": 0.9, "boom": 1.1}.get(g[2], 0.0))
 	return out
 
 
@@ -1611,7 +1631,7 @@ func _show_replay(fx := true) -> void:
 	var n := 0
 	for i in range(g[0], g[1] + 1):
 		var seg: Dictionary = eng.history[i]
-		if seg["k"] in ["fire", "launch", "blast", "orbital", "orbital_laser", "dead", "teleport"]:
+		if seg["k"] in ["fire", "launch", "blast", "orbital", "orbital_laser", "dead", "teleport", "hm_move"]:
 			var delay := 0.0 if n == 0 else randf_range(0.0, 0.3)
 			n += 1
 			if delay <= 0.0:
