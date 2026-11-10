@@ -49,6 +49,28 @@ func _init() -> void:
 	await process_frame
 	print("zoom: ", d0, " -> ", b.dist, " ", "OK" if b.dist < d0 - 1.0 else "NO")
 	print("rotazione: ", y0, " -> ", b.yaw, " ", "OK" if absf(b.yaw - y0) > 0.1 else "NO")
+	# il tocco trova l'esagono sul terreno in rilievo
+	var hp = b._ray_plane(c)
+	var hh: int = Hex.at_world(hp) if hp != null else -1
+	print("esagono sotto il dito: ", hh, " quota ", "%.2f" % (hp.y if hp != null else 0.0), " ", "OK" if hh > 0 else "NO")
+	# due dita insieme verso il basso: la vista si inclina
+	var pi0: float = b.pitch
+	var a := c - Vector2(80, 0)
+	var bb := c + Vector2(80, 0)
+	_touch(0, a, true)
+	_touch(1, bb, true)
+	await process_frame
+	for k in 8:
+		a += Vector2(0, 12)
+		_drag(0, a, Vector2(0, 12))
+		await process_frame
+		bb += Vector2(0, 12)
+		_drag(1, bb, Vector2(0, 12))
+		await process_frame
+	_touch(0, a, false)
+	_touch(1, bb, false)
+	await process_frame
+	print("inclinazione: ", "%.2f" % pi0, " -> ", "%.2f" % b.pitch, " ", "OK" if absf(b.pitch - pi0) > 0.1 else "NO")
 	# un tocco breve su un pannello non deve muovere la mappa
 	var tg: Vector3 = b.target_goal
 	_touch(0, Vector2(100, 400), true)

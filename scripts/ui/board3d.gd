@@ -5,7 +5,8 @@ extends Node3D
 ## basi; i percorsi e i colpi dei piani; gli effetti del fuoco e delle esplosioni.
 ## Due grafiche: "originale" (pedine del modulo TTS, fronte a terra e retro in volo) e "reborn"
 ## (miniature 3D, alberi, rocce ed edifici sulla mappa, luci ed effetti).
-## Comandi: un dito o tasto sinistro trascina la mappa, due dita pizzicano per lo zoom e ruotano,
+## Comandi: un dito o tasto sinistro trascina la mappa, due dita pizzicano per lo zoom e ruotano
+## (trascinate insieme in su o in giù inclinano la vista),
 ## rotella per lo zoom, tasto destro (o Maiusc + sinistro) per ruotare e inclinare.
 
 const D = preload("res://scripts/data/ss_data.gd")
@@ -24,7 +25,7 @@ var style := "originale"
 var cam: Camera3D
 var pivot: Node3D
 var yaw := 0.0
-var pitch := -1.05
+var pitch := -0.92
 var dist := 34.0
 var target := Vector3.ZERO
 var target_goal := Vector3.ZERO
@@ -47,6 +48,7 @@ var input_locked := false
 var show_labels := true
 var snap = null                  # istantanea mostrata (replay) oppure null = stato attuale
 var gui_hit: Callable            # la vista dice se un punto dello schermo è sopra un suo pannello
+var terr: SSTerrain               # rilievo del terreno
 
 var _drag := false
 var _drag_btn := 0
@@ -65,6 +67,7 @@ func setup(e: SSEngine, v: int, st: String) -> void:
 	eng = e
 	viewer = v
 	style = st
+	terr = SSTerrain.new()
 	_build_env()
 	_build_camera()
 	static_root = Node3D.new()
@@ -96,6 +99,18 @@ func set_style(st: String) -> void:
 	refresh()
 
 
+## centro dell'esagono alla quota del terreno
+func _hw(h: int) -> Vector3:
+	var c := Hex.world(h)
+	if terr != null:
+		c.y = terr.at_hex(h)
+	return c
+
+
+func ground_at(p: Vector3) -> float:
+	return terr.ground(p.x, p.z) if terr != null else 0.0
+
+
 # ================================================================ ambiente e telecamera
 
 func _build_env() -> void:
@@ -103,13 +118,13 @@ func _build_env() -> void:
 	env.environment = Environment.new()
 	add_child(env)
 	sun = DirectionalLight3D.new()
-	sun.rotation = Vector3(-1.0, 0.5, 0)
-	sun.light_energy = 0.9
+	sun.rotation = Vector3(-0.72, 0.65, 0)
+	sun.light_energy = 0.82
 	sun.shadow_enabled = not OS.has_feature("web")
 	add_child(sun)
 	var fill := DirectionalLight3D.new()
 	fill.rotation = Vector3(-0.6, -2.4, 0)
-	fill.light_energy = 0.35
+	fill.light_energy = 0.12
 	fill.light_color = Color("#ffd2b8")
 	add_child(fill)
 	_apply_env()
@@ -126,8 +141,8 @@ func _apply_env() -> void:
 		pm.energy_multiplier = 0.8
 		sky.sky_material = pm
 		e.sky = sky
-		e.ambient_light_color = Color("#8a8070")
-		e.ambient_light_energy = 0.75
+		e.ambient_light_color = Color("#d8ccb8")
+		e.ambient_light_energy = 0.4
 		e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 		e.glow_enabled = true
 		e.glow_intensity = 0.6
@@ -135,8 +150,8 @@ func _apply_env() -> void:
 	else:
 		e.background_mode = Environment.BG_COLOR
 		e.background_color = Color("#1a120d")
-		e.ambient_light_color = Color("#6c6050")
-		e.ambient_light_energy = 0.6
+		e.ambient_light_color = Color("#e8ddc8")
+		e.ambient_light_energy = 0.42
 		e.tonemap_mode = Environment.TONE_MAPPER_LINEAR
 		e.glow_enabled = false
 
@@ -160,21 +175,21 @@ func _update_cam() -> void:
 
 
 func focus(p: Vector3, d := -1.0) -> void:
-	target_goal = Vector3(p.x, 0, p.z)
+	target_goal = Vector3(p.x, ground_at(p), p.z)
 	if d > 0:
 		dist = d
 
 
 func focus_hex(h: int) -> void:
 	if Hex.valid(h):
-		focus(Hex.world(h))
+		focus(_hw(h))
 
 
 func reset_view() -> void:
 	target_goal = Vector3.ZERO
 	yaw = 0.0
-	pitch = -1.05
-	dist = 52.0
+	pitch = -0.92
+	dist = 50.0
 
 
 func _process(dt: float) -> void:
@@ -248,7 +263,10 @@ func _input(ev: InputEvent) -> void:
 			var a0 := (old - other).angle()
 			var a1: float = (ev.position - other).angle()
 			yaw += wrapf(a1 - a0, -PI, PI)
-			_pan((ev.position - old) * 0.5)
+			# due dita trascinate insieme: in su o in giù inclinano la vista (come in Mappe), di lato la spostano
+			var mid: Vector2 = (ev.position - old) * 0.5
+			pitch = clampf(pitch + mid.y * 0.006, -1.52, -0.25)
+			_pan(Vector2(mid.x, 0))
 		_touches[ev.index] = ev.position
 		return
 	if ev is InputEventMagnifyGesture:
@@ -319,20 +337,15 @@ func _pan(rel: Vector2) -> void:
 	var fwd := Vector3(-sin(yaw), 0, -cos(yaw))
 	var k := dist * 0.0013
 	target_goal += (-right * rel.x + fwd * rel.y) * k
-	target_goal.y = 0.0
 	target_goal.x = clampf(target_goal.x, -30.0, 30.0)
 	target_goal.z = clampf(target_goal.z, -20.0, 20.0)
+	target_goal.y = ground_at(target_goal)
 
 
-func _ray_plane(sp: Vector2, h := 0.0) -> Variant:
+func _ray_plane(sp: Vector2) -> Variant:
 	var o := cam.project_ray_origin(sp)
 	var d := cam.project_ray_normal(sp)
-	if absf(d.y) < 1e-4:
-		return null
-	var t := (h - o.y) / d.y
-	if t < 0:
-		return null
-	return o + d * t
+	return terr.ray(o, d)
 
 
 func _hover(sp: Vector2) -> void:
@@ -373,100 +386,160 @@ func _click(sp: Vector2) -> void:
 # ================================================================ mappa
 
 func _build_static() -> void:
+	# la mappa originale stesa sul terreno in rilievo (luce vera, così colline e montagne si leggono)
 	var tex: Texture2D = UI.tex("res://assets/map/mappa.jpg")
 	var q := MeshInstance3D.new()
-	var pm := PlaneMesh.new()
-	pm.size = Vector2(Hex.IMG_W / Hex.DX, Hex.IMG_H / Hex.DX)
-	q.mesh = pm
+	q.name = "terreno"
+	q.mesh = terr.build_mesh()
 	var m := StandardMaterial3D.new()
 	m.albedo_texture = tex
-	m.roughness = 0.95
-	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.roughness = 1.0
+	m.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
 	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 	q.material_override = m
 	static_root.add_child(q)
 	# il bordo del tavolo
 	var tb := MeshInstance3D.new()
 	var bm := BoxMesh.new()
-	bm.size = Vector3(pm.size.x + 2.4, 0.6, pm.size.y + 2.4)
+	bm.size = Vector3(terr.w + 2.4, 0.6, terr.d + 2.4)
 	tb.mesh = bm
-	tb.position = Vector3(0, -0.31, 0)
+	tb.position = Vector3(0, SSTerrain.SKIRT - 0.3, 0)
 	tb.material_override = M.mat(Color("#3b2618"), 0.0, 0.9)
 	static_root.add_child(tb)
+	_build_water()
+	_build_city()
 	_build_props()
+
+
+## specchi d'acqua sui laghi, un po' sotto il bordo della conca
+func _build_water() -> void:
+	var lake := []
+	for h in Hex.all_hexes():
+		if D.terrain(h) == "l":
+			lake.append(h)
+	if lake.is_empty():
+		return
+	var lvl := 0.0
+	for h in lake:
+		lvl += terr.at_hex(h)
+	lvl = lvl / float(lake.size()) + 0.07
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.6
+	cm.bottom_radius = 0.6
+	cm.height = 0.01
+	cm.radial_segments = 6
+	cm.rings = 1
+	mm.mesh = cm
+	mm.instance_count = lake.size()
+	for i in lake.size():
+		var c := Hex.world(lake[i])
+		mm.set_instance_transform(i, Transform3D(Basis(Vector3.UP, PI / 6.0), Vector3(c.x, lvl, c.z)))
+	var mi := MultiMeshInstance3D.new()
+	mi.multimesh = mm
+	var wm := StandardMaterial3D.new()
+	wm.albedo_color = Color(0.25, 0.5, 0.72, 0.5)
+	wm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	wm.metallic = 0.3
+	wm.roughness = 0.1
+	mi.material_override = wm
+	static_root.add_child(mi)
+
+
+## edifici veri nelle città (in entrambe le grafiche), lasciando libero il centro dove stanno le pedine
+func _build_city() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 2785
+	var blocks := []
+	var roofs := []
+	var domes := []
+	for h in Hex.all_hexes():
+		if D.terrain(h) != "u":
+			continue
+		var c := _hw(h)
+		var nb := rng.randi_range(4, 6)
+		var a0 := rng.randf() * TAU
+		for i in nb:
+			var a := a0 + float(i) / float(nb) * TAU + rng.randf_range(-0.2, 0.2)
+			var r := rng.randf_range(0.34, 0.44)
+			var p := c + Vector3(cos(a) * r, 0, sin(a) * r)
+			var gy := ground_at(p) - 0.03
+			var col := Color("#c9c1b0").lerp(Color("#9d968a"), rng.randf())
+			if rng.randf() < 0.22:
+				domes.append([Transform3D(Basis().scaled(Vector3.ONE * rng.randf_range(0.8, 1.15)), Vector3(p.x, gy, p.z)), col])
+				continue
+			var hh := rng.randf_range(0.22, 0.75)
+			var sx := rng.randf_range(0.13, 0.2)
+			var sz := rng.randf_range(0.11, 0.18)
+			var bs := Basis(Vector3.UP, -a).scaled(Vector3(sx, hh, sz))
+			blocks.append([Transform3D(bs, Vector3(p.x, gy + hh * 0.5, p.z)), col])
+			roofs.append([Transform3D(Basis(Vector3.UP, -a).scaled(Vector3(sx * 1.05, 0.03, sz * 1.05)), Vector3(p.x, gy + hh + 0.015, p.z)), col.darkened(0.45)])
+	var box := BoxMesh.new()
+	box.size = Vector3.ONE
+	var dome := SphereMesh.new()
+	dome.radius = 0.14
+	dome.height = 0.2
+	dome.is_hemisphere = true
+	dome.radial_segments = 12
+	dome.rings = 5
+	_multi(static_root, box, blocks, 0.75)
+	_multi(static_root, dome, domes, 0.4)
+	_multi(static_root, box, roofs, 0.9)
+
+
+func _multi(parent: Node3D, mesh: Mesh, arr: Array, rough: float) -> MultiMeshInstance3D:
+	if arr.is_empty():
+		return null
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_colors = true
+	mm.mesh = mesh
+	mm.instance_count = arr.size()
+	for i in arr.size():
+		mm.set_instance_transform(i, arr[i][0])
+		mm.set_instance_color(i, arr[i][1])
+	var mmi := MultiMeshInstance3D.new()
+	mmi.multimesh = mm
+	var mt := StandardMaterial3D.new()
+	mt.vertex_color_use_as_albedo = true
+	mt.roughness = rough
+	mmi.material_override = mt
+	parent.add_child(mmi)
+	return mmi
 
 
 func _build_props() -> void:
 	if style != "reborn":
 		return
-	# alberi, rocce ed edifici con le MultiMesh: migliaia di elementi in pochi oggetti (leggero sul web)
+	# alberi e rocce con le MultiMesh: migliaia di elementi in pochi oggetti (leggero sul web)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 2451
-	var lists := {"chioma": [], "tronco": [], "roccia": [], "cupola": [], "torre": [], "blocco": []}
+	var lists := {"chioma": [], "tronco": [], "roccia": []}
 	for h in Hex.all_hexes():
 		var t := D.terrain(h)
 		var c := Hex.world(h)
 		match t:
 			"o":
-				for i in 3:
-					var p := c + Vector3(rng.randf_range(-0.35, 0.35), 0, rng.randf_range(-0.35, 0.35))
+				for i in 4:
+					var p := c + Vector3(rng.randf_range(-0.4, 0.4), 0, rng.randf_range(-0.4, 0.4))
+					p.y = ground_at(p)
 					var hh := rng.randf_range(0.28, 0.5)
 					var col := Color("#3f6a24").lerp(Color("#6d8f2a"), rng.randf())
 					lists["chioma"].append([Transform3D(Basis().scaled(Vector3(rng.randf_range(0.8, 1.2), hh / 0.4, rng.randf_range(0.8, 1.2))), p + Vector3(0, hh * 0.45 + 0.08, 0)), col])
 					lists["tronco"].append([Transform3D(Basis(), p + Vector3(0, 0.06, 0)), Color("#4a3423")])
-			"m":
-				for i in 2:
-					var p2 := c + Vector3(rng.randf_range(-0.25, 0.25), 0, rng.randf_range(-0.25, 0.25))
-					var h2 := rng.randf_range(0.35, 0.8)
-					lists["roccia"].append([Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(rng.randf_range(0.8, 1.3), h2 / 0.5, rng.randf_range(0.8, 1.3))), p2 + Vector3(0, h2 * 0.5, 0)), Color("#7a5532").lerp(Color("#a3825d"), rng.randf())])
-			"u":
-				for i in 2:
-					var p3 := c + Vector3(rng.randf_range(-0.25, 0.25), 0, rng.randf_range(-0.25, 0.25))
-					var col3 := Color("#d8d2c4").lerp(Color("#b8ae9a"), rng.randf())
-					match rng.randi_range(0, 2):
-						0:
-							lists["cupola"].append([Transform3D(Basis(), p3), col3])
-						1:
-							var h3 := rng.randf_range(0.3, 0.75)
-							lists["torre"].append([Transform3D(Basis().scaled(Vector3(1, h3 / 0.5, 1)), p3 + Vector3(0, h3 * 0.5, 0)), col3])
-						_:
-							var h4 := rng.randf_range(0.2, 0.45)
-							lists["blocco"].append([Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(1, h4 / 0.3, 1)), p3 + Vector3(0, h4 * 0.5, 0)), col3])
-			"l":
-				var w := MeshInstance3D.new()
-				var cm := CylinderMesh.new()
-				cm.top_radius = 0.6
-				cm.bottom_radius = 0.6
-				cm.height = 0.03
-				cm.radial_segments = 6
-				w.mesh = cm
-				w.position = c + Vector3(0, 0.02, 0)
-				w.rotation.y = PI / 6.0
-				var wm := M.mat(Color("#3f86b8"), 0.6, 0.08).duplicate()
-				wm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-				wm.albedo_color.a = 0.55
-				w.material_override = wm
-				props_root.add_child(w)
-	var meshes := {"chioma": M._cyl(0.0, 0.15, 0.4, 7), "tronco": M._cyl(0.02, 0.03, 0.14, 5), "roccia": M._cyl(0.03, 0.26, 0.5, 5), "cupola": M._sphere(0.22, 0.3), "torre": M._cyl(0.1, 0.13, 0.5, 8), "blocco": M._box(0.26, 0.3, 0.2)}
+			"m", "b":
+				for i in (2 if t == "m" else 1):
+					if t == "b" and rng.randf() < 0.5:
+						continue
+					var p2 := c + Vector3(rng.randf_range(-0.35, 0.35), 0, rng.randf_range(-0.35, 0.35))
+					p2.y = ground_at(p2)
+					var h2 := rng.randf_range(0.2, 0.45) * (1.0 if t == "m" else 0.6)
+					lists["roccia"].append([Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(rng.randf_range(0.8, 1.3), h2 / 0.5, rng.randf_range(0.8, 1.3))), p2 + Vector3(0, h2 * 0.3, 0)), Color("#7a5532").lerp(Color("#a3825d"), rng.randf())])
+	var meshes := {"chioma": M._cyl(0.0, 0.15, 0.4, 7), "tronco": M._cyl(0.02, 0.03, 0.14, 5), "roccia": M._cyl(0.03, 0.26, 0.5, 5)}
 	for k in lists:
-		var arr: Array = lists[k]
-		if arr.is_empty():
-			continue
-		var mm := MultiMesh.new()
-		mm.transform_format = MultiMesh.TRANSFORM_3D
-		mm.use_colors = true
-		mm.mesh = meshes[k]
-		mm.instance_count = arr.size()
-		for i in arr.size():
-			mm.set_instance_transform(i, arr[i][0])
-			mm.set_instance_color(i, arr[i][1])
-		var mmi := MultiMeshInstance3D.new()
-		mmi.multimesh = mm
-		var mt := StandardMaterial3D.new()
-		mt.vertex_color_use_as_albedo = true
-		mt.roughness = 0.9
-		mmi.material_override = mt
-		props_root.add_child(mmi)
+		_multi(props_root, meshes[k], lists[k], 0.9)
 
 
 func _build_cursor() -> void:
@@ -513,7 +586,7 @@ func _set_ring(r: MeshInstance3D, h: int, y := 0.03) -> void:
 		r.visible = false
 		return
 	r.visible = true
-	r.position = Hex.world(h) + Vector3(0, y, 0)
+	r.position = _hw(h) + Vector3(0, y, 0)
 
 
 func highlight(h: int) -> void:
@@ -615,16 +688,21 @@ func _short(u: Dictionary) -> String:
 
 
 func _unit_pos(h: int, alt: int, i: int, n: int) -> Vector3:
-	var c := Hex.world(h)
+	var c := _hw(h)
 	var y: float = ALT_Y[alt]
+	var p: Vector3
 	if n <= 1:
-		return c + Vector3(0, y, 0)
-	if style == "originale":
+		p = c + Vector3(0, y, 0)
+	elif style == "originale":
 		# pedine impilate e un po' sfalsate, come sul tavolo
-		return c + Vector3(-0.06 * float(i) + 0.03 * float(n - 1), y + 0.075 * float(i), -0.06 * float(i) + 0.03 * float(n - 1))
-	var a := float(i) / float(n) * TAU
-	var r := 0.24 if n <= 4 else 0.3
-	return c + Vector3(cos(a) * r, y, sin(a) * r)
+		p = c + Vector3(-0.06 * float(i) + 0.03 * float(n - 1), y + 0.075 * float(i), -0.06 * float(i) + 0.03 * float(n - 1))
+	else:
+		var a := float(i) / float(n) * TAU
+		var r := 0.24 if n <= 4 else 0.3
+		p = c + Vector3(cos(a) * r, y, sin(a) * r)
+	# mai sotto il terreno (pendii)
+	p.y = maxf(p.y, ground_at(p) + y + 0.01)
+	return p
 
 
 func _unit_node(u: Dictionary, st: Dictionary) -> Node3D:
@@ -813,7 +891,7 @@ func _refresh_marks() -> void:
 			lb.font_size = 15
 			lb.outline_size = 5
 			lb.modulate = Color("#fff3b0") if int(c[3]) == 1 else Color("#c9c0b0")
-			lb.position = Hex.world(int(c[0])) + Vector3(-0.28, 0.32, 0.26)
+			lb.position = _hw(int(c[0])) + Vector3(-0.28, 0.32, 0.26)
 			lb.no_depth_test = true
 			marks_root.add_child(lb)
 	# missili cercatori (le mine nascoste solo per chi le ha piazzate)
@@ -857,7 +935,9 @@ func _flat(name: String, h: int, y: float, size: float, off := Vector3.ZERO) -> 
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
 	m.roughness = 0.9
 	mi.material_override = m
-	mi.position = Hex.world(h) + off + Vector3(0, y, 0)
+	var p := _hw(h) + off
+	p.y = maxf(p.y, ground_at(p)) + y
+	mi.position = p
 	return mi
 
 
@@ -882,7 +962,7 @@ func _crater3d(h: int) -> Node3D:
 	pit.position.y = 0.006
 	pit.material_override = M.mat(Color("#2a1e14"), 0.0, 1.0)
 	n.add_child(pit)
-	n.position = Hex.world(h) + Vector3(0, 0.02, 0)
+	n.position = _hw(h) + Vector3(0, 0.02, 0)
 	return n
 
 
@@ -903,7 +983,7 @@ func _smoke_cloud(h: int, dense: bool) -> Node3D:
 		s.material_override = m
 		s.position = Vector3(rng.randf_range(-0.3, 0.3), rng.randf_range(0.15, 0.6), rng.randf_range(-0.3, 0.3))
 		n.add_child(s)
-	n.position = Hex.world(h)
+	n.position = _hw(h)
 	return n
 
 
@@ -921,11 +1001,11 @@ func set_overlays(items: Array) -> void:
 				over_root.add_child(_polyline([it["a"], it["b"]], it["col"], 0.03, true))
 			"hex":
 				var r := _ring_mesh(it["col"], 0.09)
-				r.position = Hex.world(it["h"]) + Vector3(0, 0.05 + float(it.get("y", 0.0)), 0)
+				r.position = _hw(it["h"]) + Vector3(0, 0.05 + float(it.get("y", 0.0)), 0)
 				over_root.add_child(r)
 			"fill":
 				var r2 := _ring_mesh(it["col"], 0.5)
-				r2.position = Hex.world(it["h"]) + Vector3(0, 0.03, 0)
+				r2.position = _hw(it["h"]) + Vector3(0, 0.03, 0)
 				over_root.add_child(r2)
 
 
@@ -970,7 +1050,7 @@ func _polyline(pts: Array, col: Color, w: float, dashed := false) -> MeshInstanc
 
 
 func point(h: int, alt: int) -> Vector3:
-	return Hex.world(h) + Vector3(0, ALT_Y[clampi(alt, 0, 2)] + 0.2, 0)
+	return _hw(h) + Vector3(0, ALT_Y[clampi(alt, 0, 2)] + 0.2, 0)
 
 
 # ================================================================ effetti

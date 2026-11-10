@@ -17,12 +17,14 @@ Si gioca nel browser: https://tannoiser2.github.io/StarSoldier/ (e dalla ludotec
 - **Tutti gli scenari** del regolamento: le situazioni di Pattuglia, Ricognizione e Assalto per ogni
   guerra dal 2405 al 2487 (scegliendo le fazioni e chi fa Alpha o Bravo), la sconfitta degli Xenofobi (2785),
   il Dinkblog di Delta Pavonis e l'assalto alla Stazione Zulu (bordi uniti, niente atmosfera).
-- **Mappa 3D** con la mappa originale del modulo TTS: i soldati alle tre quote (a terra, volo radente su uno
+- **Mappa 3D in rilievo**: la mappa originale del modulo TTS stesa su un terreno vero, con le quote prese dal
+  tipo di ogni esagono (montagne alte e frastagliate, colline nel terreno accidentato, laghi incassati con
+  l'acqua, città con gli edifici). Sopra: i soldati alle tre quote (a terra, volo radente su uno
   stelo, alta quota), percorsi e colpi dei piani disegnati sulla mappa, raggio delle esplosioni. Due grafiche:
   **originale** (le pedine SPI, fronte a terra e retro in volo, e la plancia dei punti di compito) e **Reborn**
   (miniature 3D per ogni specie, alberi, rocce ed edifici, effetti di luce per fuoco ed esplosioni).
 - Comandi della mappa con mouse e **tocco su iPad**: un dito trascina, due dita pizzicano per lo zoom e
-  ruotano; rotella e tasto destro con il mouse.
+  ruotano, due dita trascinate in su o in giù inclinano la vista; rotella e tasto destro con il mouse.
 - **IA** per qualsiasi lato, **gioco a turno** sullo stesso dispositivo con piani segreti, **online** con
   piani simultanei (Firebase), **salvataggi** su Firebase con un codice di sei lettere, **replay** finale.
 - Regolamento in italiano e tabelle dentro il gioco (`assets/regole.md`).
@@ -35,7 +37,7 @@ Si gioca nel browser: https://tannoiser2.github.io/StarSoldier/ (e dalla ludotec
 - `scripts/core/hex.gd`: geometria della mappa (numerazione XXYY, distanze, linee di fuoco, diagramma di dispersione).
 - `scripts/core/engine.gd`: la sequenza di gioco e tutte le regole.
 - `scripts/core/ai.gd`: avversario automatico.
-- `scripts/ui/`: menu, schermata di gioco, scena 3D (`board3d.gd`), miniature Reborn (`models.gd`), regole e tabelle.
+- `scripts/ui/`: menu, schermata di gioco, scena 3D (`board3d.gd`), terreno in rilievo (`terrain3d.gd`), miniature Reborn (`models.gd`), regole e tabelle.
 - `scripts/net/`: Firebase (stanze `starsoldier/rooms`, salvataggi `starsoldier/partite`) e partita online in
   lockstep. Usa le strutture comuni della ludoteca, quindi non servono regole nuove nel database.
 
