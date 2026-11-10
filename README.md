@@ -19,7 +19,9 @@ Si gioca nel browser: https://tannoiser2.github.io/StarSoldier/ (e dalla ludotec
   il Dinkblog di Delta Pavonis e l'assalto alla Stazione Zulu (bordi uniti, niente atmosfera).
 - **Mappa 3D in rilievo**: la mappa originale del modulo TTS stesa su un terreno vero, con le quote prese dal
   tipo di ogni esagono (montagne alte e frastagliate, colline nel terreno accidentato, laghi incassati con
-  l'acqua, città con gli edifici). Sopra: i soldati alle tre quote (a terra, volo radente su uno
+  l'acqua). Le **città** sono modellate in Blender sui simboli stampati sulla mappa (torri a cupola, sfere,
+  blocchi, bunker, tubi di collegamento) e ci si sovrappongono esattamente; la luce viene da Ovest come le
+  ombre disegnate. Il modello Blender sta in `Desktop/Ludoteca/StarSoldier/Citta 3D`. Sopra: i soldati alle tre quote (a terra, volo radente su uno
   stelo, alta quota), percorsi e colpi dei piani disegnati sulla mappa, raggio delle esplosioni. Due grafiche:
   **originale** (le pedine SPI, fronte a terra e retro in volo, e la plancia dei punti di compito) e **Reborn**
   (miniature 3D per ogni specie, alberi, rocce ed edifici, effetti di luce per fuoco ed esplosioni).
@@ -37,7 +39,7 @@ Si gioca nel browser: https://tannoiser2.github.io/StarSoldier/ (e dalla ludotec
 - `scripts/core/hex.gd`: geometria della mappa (numerazione XXYY, distanze, linee di fuoco, diagramma di dispersione).
 - `scripts/core/engine.gd`: la sequenza di gioco e tutte le regole.
 - `scripts/core/ai.gd`: avversario automatico.
-- `scripts/ui/`: menu, schermata di gioco, scena 3D (`board3d.gd`), terreno in rilievo (`terrain3d.gd`), miniature Reborn (`models.gd`), regole e tabelle.
+- `scripts/ui/`: menu, schermata di gioco, scena 3D (`board3d.gd`), terreno in rilievo (`terrain3d.gd`), città (`citta3d.gd`, pianta in `scripts/data/citta.gd`), miniature Reborn (`models.gd`), regole e tabelle.
 - `scripts/net/`: Firebase (stanze `starsoldier/rooms`, salvataggi `starsoldier/partite`) e partita online in
   lockstep. Usa le strutture comuni della ludoteca, quindi non servono regole nuove nel database.
 
@@ -57,6 +59,7 @@ xvfb-run godot --path . -s tests/shot.gd -- 30 R originale 4 /tmp/foto.png 1 aut
 python3 tests/firebase_mock.py 8765                            # e tests/online_play.gd: partita online
 python3 tools/controlla_glifi.py                               # ogni carattere esiste nei font
 xvfb-run godot --path . -s tests/tocco.gd                     # tocco su iPad e mouse sulla mappa
+xvfb-run godot --path . -s tests/foto_citta.gd -- -3.5 7.9 9 -1.52 0 originale /tmp/c.png   # una zona della mappa 3D
 ```
 
 ## Pubblicazione

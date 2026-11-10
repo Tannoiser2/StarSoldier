@@ -118,12 +118,13 @@ func _build_env() -> void:
 	env.environment = Environment.new()
 	add_child(env)
 	sun = DirectionalLight3D.new()
-	sun.rotation = Vector3(-0.72, 0.65, 0)
+	# il sole viene da Ovest e un po' da Nord, come le ombre stampate a destra dei simboli della mappa
+	sun.rotation = Vector3(-0.62, -1.75, 0)
 	sun.light_energy = 0.82
 	sun.shadow_enabled = not OS.has_feature("web")
 	add_child(sun)
 	var fill := DirectionalLight3D.new()
-	fill.rotation = Vector3(-0.6, -2.4, 0)
+	fill.rotation = Vector3(-0.6, 1.2, 0)
 	fill.light_energy = 0.12
 	fill.light_color = Color("#ffd2b8")
 	add_child(fill)
@@ -448,45 +449,9 @@ func _build_water() -> void:
 	static_root.add_child(mi)
 
 
-## edifici veri nelle città (in entrambe le grafiche), lasciando libero il centro dove stanno le pedine
+## le città modellate in Blender sulla pianta dei simboli della mappa (in entrambe le grafiche)
 func _build_city() -> void:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 2785
-	var blocks := []
-	var roofs := []
-	var domes := []
-	for h in Hex.all_hexes():
-		if D.terrain(h) != "u":
-			continue
-		var c := _hw(h)
-		var nb := rng.randi_range(4, 6)
-		var a0 := rng.randf() * TAU
-		for i in nb:
-			var a := a0 + float(i) / float(nb) * TAU + rng.randf_range(-0.2, 0.2)
-			var r := rng.randf_range(0.34, 0.44)
-			var p := c + Vector3(cos(a) * r, 0, sin(a) * r)
-			var gy := ground_at(p) - 0.03
-			var col := Color("#c9c1b0").lerp(Color("#9d968a"), rng.randf())
-			if rng.randf() < 0.22:
-				domes.append([Transform3D(Basis().scaled(Vector3.ONE * rng.randf_range(0.8, 1.15)), Vector3(p.x, gy, p.z)), col])
-				continue
-			var hh := rng.randf_range(0.22, 0.75)
-			var sx := rng.randf_range(0.13, 0.2)
-			var sz := rng.randf_range(0.11, 0.18)
-			var bs := Basis(Vector3.UP, -a).scaled(Vector3(sx, hh, sz))
-			blocks.append([Transform3D(bs, Vector3(p.x, gy + hh * 0.5, p.z)), col])
-			roofs.append([Transform3D(Basis(Vector3.UP, -a).scaled(Vector3(sx * 1.05, 0.03, sz * 1.05)), Vector3(p.x, gy + hh + 0.015, p.z)), col.darkened(0.45)])
-	var box := BoxMesh.new()
-	box.size = Vector3.ONE
-	var dome := SphereMesh.new()
-	dome.radius = 0.14
-	dome.height = 0.2
-	dome.is_hemisphere = true
-	dome.radial_segments = 12
-	dome.rings = 5
-	_multi(static_root, box, blocks, 0.75)
-	_multi(static_root, dome, domes, 0.4)
-	_multi(static_root, box, roofs, 0.9)
+	SSCitta3D.new().build(static_root, func(x: float, z: float) -> float: return terr.ground(x, z))
 
 
 func _multi(parent: Node3D, mesh: Mesh, arr: Array, rough: float) -> MultiMeshInstance3D:
