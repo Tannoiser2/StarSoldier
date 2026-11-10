@@ -39,7 +39,7 @@ Si gioca nel browser: https://tannoiser2.github.io/StarSoldier/ (e dalla ludotec
 - `scripts/core/hex.gd`: geometria della mappa (numerazione XXYY, distanze, linee di fuoco, diagramma di dispersione).
 - `scripts/core/engine.gd`: la sequenza di gioco e tutte le regole.
 - `scripts/core/ai.gd`: avversario automatico.
-- `scripts/ui/`: menu, schermata di gioco, scena 3D (`board3d.gd`), terreno in rilievo (`terrain3d.gd`), città (`citta3d.gd`, pianta in `scripts/data/citta.gd`), miniature Reborn (`models.gd`), regole e tabelle.
+- `scripts/ui/`: menu, schermata di gioco, scena 3D (`board3d.gd`), terreno in rilievo (`terrain3d.gd`), effetti (`fx3d.gd`: jetpack, traccianti, granate, esplosioni), città (`citta3d.gd`, pianta in `scripts/data/citta.gd`), miniature Reborn (`models.gd`), regole e tabelle.
 - `scripts/net/`: Firebase (stanze `starsoldier/rooms`, salvataggi `starsoldier/partite`) e partita online in
   lockstep. Usa le strutture comuni della ludoteca, quindi non servono regole nuove nel database.
 
@@ -59,6 +59,7 @@ xvfb-run godot --path . -s tests/shot.gd -- 30 R originale 4 /tmp/foto.png 1 aut
 python3 tests/firebase_mock.py 8765                            # e tests/online_play.gd: partita online
 python3 tools/controlla_glifi.py                               # ogni carattere esiste nei font
 xvfb-run godot --path . -s tests/tocco.gd                     # tocco su iPad e mouse sulla mappa
+xvfb-run godot --path . -s tests/foto_fx.gd -- reborn /tmp/fx                  # jetpack, spari, bombe
 xvfb-run godot --path . -s tests/foto_citta.gd -- -3.5 7.9 9 -1.52 0 originale /tmp/c.png   # una zona della mappa 3D
 ```
 

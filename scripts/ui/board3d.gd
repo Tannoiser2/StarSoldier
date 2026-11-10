@@ -724,11 +724,11 @@ func _unit_node(u: Dictionary, st: Dictionary) -> Node3D:
 					mm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 					mm.albedo_color.a = 0.4
 					c.material_override = mm
-		if air and u["kind"] in ["ss", "hw", "an"]:
-			var j := M.jet(Color("#ffb347") if u["race"] != "r" else Color("#9ef0ff"))
-			j.scale = Vector3.ONE * 0.55
-			j.position.y = 0.25
-			vis.add_child(j)
+	# in volo: fiamma e fumo del jetpack (i Rame hanno la propulsione azzurra)
+	if air and u["kind"] in ["ss", "hw", "an"]:
+		var jp := SSFx.jetpack(Color("#ff8a2a") if u["race"] != "r" else Color("#6ad8ff"))
+		jp.position.y = 0.0 if style == "originale" else 0.12
+		root.add_child(jp)
 	var sel := _ring_mesh(Color("#ffd27a"), 0.08)
 	sel.name = "selezione"
 	sel.scale = Vector3(0.7, 1, 0.7)
@@ -1021,29 +1021,52 @@ func point(h: int, alt: int) -> Vector3:
 # ================================================================ effetti
 
 func play_fx(kind: String, d: Dictionary, speed := 1.0) -> void:
+	var light := style == "reborn"
 	match kind:
 		"fire", "orbital_laser":
-			var from: Vector3
-			if kind == "orbital_laser":
-				from = point(d["to"], d["talt"]) + Vector3(0, 30, 0)
-			else:
-				from = point(d["from"], d["falt"])
 			var to := point(d["to"], d["talt"])
+			var hit: bool = d.get("res", 0) > 0
 			var col := Color("#ff4a2a") if d.get("side", 0) == 0 else Color("#4ab8ff")
 			if d.get("laser", false) or kind == "orbital_laser":
+				# laser: raggio continuo dall'orbita o dalla piattaforma
 				col = Color("#ff2bd0")
-			_beam(from, to, col, 0.35 / speed, d.get("res", 0) > 0)
+				var from := point(d["to"], d["talt"]) + Vector3(0, 30, 0) if kind == "orbital_laser" else point(d["from"], d["falt"])
+				_beam(from, to, col, 0.45 / speed, false)
+				SSFx.sparks(fx_root, to, col, hit)
+				if hit:
+					SSFx.explosion(fx_root, to - Vector3(0, 0.15, 0), 0.35, false, 0.6 / speed, light)
+			else:
+				# colpo tracciante: lampo alla bocca, proiettile, scintille (e una piccola esplosione se va a segno)
+				var from2 := point(d["from"], d["falt"])
+				SSFx.muzzle(fx_root, from2, col, 0.15 / speed)
+				var dur := clampf(from2.distance_to(to) * 0.035, 0.12, 0.4) / speed
+				var fxr := fx_root
+				SSFx.tracer(fx_root, from2, to, col, dur, func() -> void:
+					SSFx.sparks(fxr, to, col, hit)
+					if hit:
+						SSFx.explosion(fxr, to - Vector3(0, 0.15, 0), 0.3, false, 0.5 / speed, light))
 		"launch":
-			_arc(point(d["from"], d["falt"]), point(d["to"], 0), Color("#ffd27a"), 0.6 / speed)
+			# granata o missile cercatore che vola ad arco con la scia di fumo
+			var a := point(d["from"], d["falt"])
+			var b := point(d["to"], 0) - Vector3(0, 0.15, 0)
+			var fxr2 := fx_root
+			SSFx.muzzle(fx_root, a, Color("#ffd27a"), 0.15 / speed)
+			SSFx.lob(fx_root, a, b, 0.5 / speed, d.get("w", "") == "hm", func() -> void:
+				SSFx.sparks(fxr2, b, Color("#ffd27a"), false))
 		"blast":
 			var high: bool = d.get("high", false)
 			var hexes: Dictionary = d.get("hexes", {})
+			var big: bool = d.get("kind", "") in ["ob", "nb"]
+			var first := true
 			for hh in hexes:
-				_boom(point(int(hh), 2 if high else 0) - Vector3(0, 0.15, 0), 1.0 - 0.3 * float(hexes[hh]), d.get("kind", "") in ["ob", "nb"], 0.8 / speed)
+				var k := 1.0 - 0.3 * float(hexes[hh])
+				SSFx.explosion(fx_root, point(int(hh), 2 if high else 0) - Vector3(0, 0.2, 0), k, big, 0.9 / speed, light and first)
+				first = false
 		"orbital":
 			_beam(point(d["h"], 0) + Vector3(0, 40, 0), point(d["h"], 0), Color("#ffcf5a"), 0.4 / speed, true)
+			SSFx.explosion(fx_root, point(d["h"], 0) - Vector3(0, 0.2, 0), 1.3, true, 1.0 / speed, true)
 		"dead":
-			_boom(point(d["h"], d["alt"]), 0.5, false, 0.6 / speed)
+			SSFx.explosion(fx_root, point(d["h"], d["alt"]) - Vector3(0, 0.1, 0), 0.45, false, 0.7 / speed, light)
 		"teleport", "found", "search", "hm_on":
 			var h: int = int(d.get("to", d.get("h", 0)))
 			if Hex.valid(h):
