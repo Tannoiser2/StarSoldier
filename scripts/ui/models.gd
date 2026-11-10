@@ -87,8 +87,8 @@ static func build(race: String, kind: String, side_col: Color) -> Node3D:
 				_dinkblog(body)
 			_:
 				_build_code(body, race, kind)
-	# base del lato solo per piattaforme e basi (le miniature hanno il cerchio colorato a terra)
-	if kind in ["pl", "base"]:
+	# base del lato solo per piattaforme e basi senza miniatura (le miniature hanno il cerchio colorato a terra)
+	if kind in ["pl", "base"] and mini == null:
 		var ring := _mesh(_cyl(0.3, 0.32, 0.04, 20), mat(side_col, 0.2, 0.4, 0.4), Vector3(0, 0.02, 0))
 		ring.name = "basetta"
 		ring.scale = Vector3(1.6, 1, 1.6)
@@ -119,6 +119,8 @@ const MINI := {
 	"r|ss": ["rame", 0.8], "r|an": ["rame", 0.8],
 	"x|ss": ["xenofobi", 1.15], "x|an": ["xenofobi", 1.15],
 	"d|dink": ["dinkblog", 0.75],
+	# le piattaforme sono navette allungate sull'asse x: il terzo valore le gira col muso in avanti (+z)
+	"h|pl": ["piattaforma_umana", 0.55, PI / 2.0], "l|pl": ["piattaforma_lchal", 0.55, PI / 2.0], "r|pl": ["piattaforma_rame", 0.55, -PI / 2.0],
 }
 static var _scenes := {}
 static var _aabbs := {}
@@ -175,6 +177,8 @@ static func miniature(race: String, kind: String) -> Node3D:
 	if not MINI.has(key):
 		return null
 	var n := model(MINI[key][0], MINI[key][1])
+	if n != null and MINI[key].size() > 2:
+		n.rotation.y = float(MINI[key][2])
 	if n != null and kind == "an":
 		# gli androidi: la stessa tuta con un velo metallico azzurrato
 		var ov := StandardMaterial3D.new()

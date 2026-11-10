@@ -9,7 +9,7 @@ func _init() -> void:
 	w.add_child(env)
 	var sun := DirectionalLight3D.new(); w.add_child(sun); sun.rotation = Vector3(-0.7, -0.6, 0)
 	var cam := Camera3D.new(); w.add_child(cam); cam.position = Vector3(8, 1.6, 9); cam.look_at(Vector3(8, 0.9, 0)); cam.fov = 50
-	var names := ["umani_leggero", "umani_pesante", "lchal_leggero", "lchal_pesante", "rame", "xenofobi", "civili", "dinkblog", "missile"]
+	var names := ["piattaforma_umana", "piattaforma_lchal", "piattaforma_rame", "umani_leggero", "umani_pesante", "lchal_leggero", "lchal_pesante", "rame", "xenofobi", "civili", "dinkblog", "missile"]
 	var i := 0
 	for n in names:
 		var s: PackedScene = load("res://assets/miniature/%s.glb" % n)

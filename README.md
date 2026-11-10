@@ -25,7 +25,7 @@ Si gioca nel browser: https://tannoiser2.github.io/StarSoldier/ (e dalla ludotec
   stelo, alta quota), percorsi e colpi dei piani disegnati sulla mappa, raggio delle esplosioni. Due grafiche:
   **originale** (le pedine SPI, fronte a terra e retro in volo, e la plancia dei punti di compito) e **Reborn**
   (le miniature 3D di Stefano in `assets/miniature`: umani e L'Chal Dah leggeri e con armi pesanti, Rame,
-  Xenofobi, Dinkblog, civili e missili cercatori, alleggerite per il web; gli androidi con un velo metallico; alberi, rocce ed edifici, effetti di luce per fuoco ed esplosioni).
+  Xenofobi, Dinkblog, le tre piattaforme di supporto, civili e missili cercatori, alleggerite per il web; gli androidi con un velo metallico; alberi, rocce ed edifici, effetti di luce per fuoco ed esplosioni).
 - Comandi della mappa con mouse e **tocco su iPad**: un dito trascina, due dita pizzicano per lo zoom e
   ruotano, due dita trascinate in su o in giù inclinano la vista; rotella e tasto destro con il mouse.
 - **IA** per qualsiasi lato, **gioco a turno** sullo stesso dispositivo con piani segreti, **online** con
