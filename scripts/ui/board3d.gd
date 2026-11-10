@@ -202,7 +202,13 @@ func _process(dt: float) -> void:
 		if not is_instance_valid(n):
 			continue
 		var goal: Vector3 = unit_goal.get(id, n.position)
+		var step := goal - n.position
 		n.position = n.position.lerp(goal, minf(1.0, dt * 7.0))
+		# la miniatura si gira verso dove va
+		if style == "reborn" and Vector2(step.x, step.z).length() > 0.05:
+			var v: Node3D = n.get_node_or_null("vis")
+			if v != null:
+				v.rotation.y = lerp_angle(v.rotation.y, atan2(step.x, step.z), minf(1.0, dt * 8.0))
 		var body := n.get_node_or_null("vis/corpo")
 		if body != null and n.has_meta("air"):
 			body.position.y = sin(_t * 2.0 + float(n.get_instance_id() % 13)) * 0.04
@@ -718,12 +724,9 @@ func _unit_node(u: Dictionary, st: Dictionary) -> Node3D:
 		vis.add_child(corpo)
 		corpo.scale = mdl.scale
 		if ghost:
-			for c in corpo.get_children():
-				if c is MeshInstance3D:
-					var mm: StandardMaterial3D = c.material_override.duplicate()
-					mm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-					mm.albedo_color.a = 0.4
-					c.material_override = mm
+			M.ghost(corpo, 0.6)
+		# lo sguardo: Alpha verso Est, Bravo verso Ovest; poi segue il movimento
+		vis.rotation.y = PI / 2.0 if u["side"] == 0 else -PI / 2.0
 	# in volo: fiamma e fumo del jetpack (i Rame hanno la propulsione azzurra)
 	if air and u["kind"] in ["ss", "hw", "an"]:
 		var jp := SSFx.jetpack(Color("#ff8a2a") if u["race"] != "r" else Color("#6ad8ff"))
@@ -844,8 +847,16 @@ func _refresh_marks() -> void:
 		var t := "civile"
 		if eng.sit == "B" and int(c[2]) == 0:
 			t = "civile" if int(c[3]) == 1 else "fittizio"
-		var n := _flat(t, int(c[0]), 0.1 + 0.02 * float(i % 3), 0.5, Vector3(-0.28, 0, 0.26))
-		marks_root.add_child(n)
+		var cm: Node3D = M.model("civili", 0.42) if style == "reborn" else null
+		if cm != null:
+			# Reborn: la miniatura dei civili (veri e fittizi si somigliano: lo dice solo l'etichetta)
+			var cp := _hw(int(c[0])) + Vector3(-0.28, 0, 0.26)
+			cp.y = ground_at(cp)
+			cm.position = cp
+			cm.rotation.y = float(i) * 1.3
+			marks_root.add_child(cm)
+		else:
+			marks_root.add_child(_flat(t, int(c[0]), 0.1 + 0.02 * float(i % 3), 0.5, Vector3(-0.28, 0, 0.26)))
 		# il difensore umano vede quali segnalini sono veri
 		if eng.sit == "B" and (viewer == 1 or viewer < 0) and int(c[2]) == 1:
 			var lb := Label3D.new()
@@ -874,10 +885,23 @@ func _refresh_marks() -> void:
 		var ped: String = eng.sides[int(m[3])]["pedine"]
 		if not ped in ["h", "l", "r"]:
 			ped = "h"
-		var nm := _flat("%s_miss%s" % [ped, "_att" if int(m[1]) == 1 else ""], int(m[0]), 0.2, 0.5, Vector3(0.26, 0, -0.26))
-		if int(m[4]) == 1:
-			nm.modulate_alpha = 0.5
-		marks_root.add_child(nm)
+		var mm: Node3D = M.model("missile", 0.11) if style == "reborn" else null
+		if mm != null:
+			# Reborn: il missile cercatore a terra; attivo si alza e punta verso l'alto
+			var mp := _hw(int(m[0])) + Vector3(0.26, 0, -0.26)
+			mp.y = ground_at(mp)
+			mm.position = mp
+			if int(m[1]) == 1:
+				mm.position.y += 0.25
+				mm.rotation = Vector3(0, 0.6, 0.9)
+			if int(m[4]) == 1:
+				M.ghost(mm, 0.5)
+			marks_root.add_child(mm)
+		else:
+			var nm := _flat("%s_miss%s" % [ped, "_att" if int(m[1]) == 1 else ""], int(m[0]), 0.2, 0.5, Vector3(0.26, 0, -0.26))
+			if int(m[4]) == 1:
+				nm.modulate_alpha = 0.5
+			marks_root.add_child(nm)
 
 
 class Flat extends MeshInstance3D:

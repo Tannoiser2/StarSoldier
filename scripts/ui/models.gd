@@ -74,13 +74,30 @@ static func build(race: String, kind: String, side_col: Color) -> Node3D:
 	var body := Node3D.new()
 	body.name = "corpo"
 	root.add_child(body)
+	var mini := miniature(race if kind != "dink" else "d", kind)
+	if mini != null:
+		body.add_child(mini)
+	else:
+		match kind:
+			"pl":
+				_platform(body, race)
+			"base":
+				_base(body, race)
+			"dink":
+				_dinkblog(body)
+			_:
+				_build_code(body, race, kind)
+	# base del lato
+	var ring := _mesh(_cyl(0.3, 0.32, 0.04, 20), mat(side_col, 0.2, 0.4, 0.4), Vector3(0, 0.02, 0))
+	ring.name = "basetta"
+	if kind in ["pl", "base"]:
+		ring.scale = Vector3(1.6, 1, 1.6)
+	root.add_child(ring)
+	return root
+
+
+static func _build_code(body: Node3D, race: String, kind: String) -> void:
 	match kind:
-		"pl":
-			_platform(body, race)
-		"base":
-			_base(body, race)
-		"dink":
-			_dinkblog(body)
 		_:
 			match race:
 				"r":
@@ -91,13 +108,96 @@ static func build(race: String, kind: String, side_col: Color) -> Node3D:
 					_trooper(body, Color("#7f9a1f"), Color("#d8e6a0"), kind, true)
 				_:
 					_trooper(body, Color("#cfd8e3"), Color("#6fb6ff"), kind, false)
-	# base del lato
-	var ring := _mesh(_cyl(0.3, 0.32, 0.04, 20), mat(side_col, 0.2, 0.4, 0.4), Vector3(0, 0.02, 0))
-	ring.name = "basetta"
-	if kind in ["pl", "base"]:
-		ring.scale = Vector3(1.6, 1, 1.6)
-	root.add_child(ring)
-	return root
+
+
+# ---------------------------------------------------------------- miniature 3D (assets/miniature)
+
+## file della miniatura e altezza (prima della scala della scena) per specie e tipo
+const MINI := {
+	"h|ss": ["umani_leggero", 1.05], "h|hw": ["umani_pesante", 1.1], "h|an": ["umani_leggero", 1.05],
+	"l|ss": ["lchal_leggero", 1.1], "l|hw": ["lchal_pesante", 1.1], "l|an": ["lchal_leggero", 1.1],
+	"r|ss": ["rame", 0.8], "r|an": ["rame", 0.8],
+	"x|ss": ["xenofobi", 1.15], "x|an": ["xenofobi", 1.15],
+	"d|dink": ["dinkblog", 0.75],
+}
+static var _scenes := {}
+static var _aabbs := {}
+
+
+static func _scene(name: String) -> PackedScene:
+	if not _scenes.has(name):
+		var path := "res://assets/miniature/%s.glb" % name
+		_scenes[name] = load(path) if ResourceLoader.exists(path) else null
+	return _scenes[name]
+
+
+static func _aabb_of(n: Node, xf := Transform3D()) -> AABB:
+	var box := AABB()
+	var first := true
+	var stack := [[n, xf]]
+	while not stack.is_empty():
+		var it: Array = stack.pop_back()
+		var node: Node = it[0]
+		var t: Transform3D = it[1]
+		if node is Node3D:
+			t = t * (node as Node3D).transform
+		if node is MeshInstance3D and (node as MeshInstance3D).mesh != null:
+			var b: AABB = t * (node as MeshInstance3D).mesh.get_aabb()
+			box = b if first else box.merge(b)
+			first = false
+		for c in node.get_children():
+			stack.append([c, t])
+	return box
+
+
+## un modello qualsiasi della cartella delle miniature, poggiato a terra, centrato e alto h
+static func model(name: String, h: float) -> Node3D:
+	var ps := _scene(name)
+	if ps == null:
+		return null
+	var inst := ps.instantiate() as Node3D
+	if not _aabbs.has(name):
+		_aabbs[name] = _aabb_of(inst, Transform3D())
+	var box: AABB = _aabbs[name]
+	var k := h / maxf(box.size.y, 0.001)
+	var holder := Node3D.new()
+	holder.name = "miniatura"
+	holder.add_child(inst)
+	inst.scale = Vector3.ONE * k
+	var c := box.get_center()
+	inst.position = Vector3(-c.x * k, -box.position.y * k + 0.04, -c.z * k)
+	return holder
+
+
+## la miniatura di un'unità (null se manca: si usa quella costruita in codice)
+static func miniature(race: String, kind: String) -> Node3D:
+	var key := "%s|%s" % [race, kind]
+	if not MINI.has(key):
+		return null
+	var n := model(MINI[key][0], MINI[key][1])
+	if n != null and kind == "an":
+		# gli androidi: la stessa tuta con un velo metallico azzurrato
+		var ov := StandardMaterial3D.new()
+		ov.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		ov.albedo_color = Color(0.55, 0.8, 1.0, 0.28)
+		ov.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_overlay(n, ov)
+	return n
+
+
+static func _overlay(n: Node, m: Material) -> void:
+	if n is GeometryInstance3D:
+		(n as GeometryInstance3D).material_overlay = m
+	for c in n.get_children():
+		_overlay(c, m)
+
+
+## trasparenza per le unità nascoste viste dal proprietario
+static func ghost(n: Node, a: float) -> void:
+	if n is GeometryInstance3D:
+		(n as GeometryInstance3D).transparency = a
+	for c in n.get_children():
+		ghost(c, a)
 
 
 static func _trooper(b: Node3D, suit: Color, visor: Color, kind: String, tall: bool) -> void:

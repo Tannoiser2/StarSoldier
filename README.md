@@ -24,7 +24,8 @@ Si gioca nel browser: https://tannoiser2.github.io/StarSoldier/ (e dalla ludotec
   ombre disegnate. Il modello Blender sta in `Desktop/Ludoteca/StarSoldier/Citta 3D`. Sopra: i soldati alle tre quote (a terra, volo radente su uno
   stelo, alta quota), percorsi e colpi dei piani disegnati sulla mappa, raggio delle esplosioni. Due grafiche:
   **originale** (le pedine SPI, fronte a terra e retro in volo, e la plancia dei punti di compito) e **Reborn**
-  (miniature 3D per ogni specie, alberi, rocce ed edifici, effetti di luce per fuoco ed esplosioni).
+  (le miniature 3D di Stefano in `assets/miniature`: umani e L'Chal Dah leggeri e con armi pesanti, Rame,
+  Xenofobi, Dinkblog, civili e missili cercatori, alleggerite per il web; gli androidi con un velo metallico; alberi, rocce ed edifici, effetti di luce per fuoco ed esplosioni).
 - Comandi della mappa con mouse e **tocco su iPad**: un dito trascina, due dita pizzicano per lo zoom e
   ruotano, due dita trascinate in su o in giù inclinano la vista; rotella e tasto destro con il mouse.
 - **IA** per qualsiasi lato, **gioco a turno** sullo stesso dispositivo con piani segreti, **online** con
@@ -60,6 +61,8 @@ python3 tests/firebase_mock.py 8765                            # e tests/online_
 python3 tools/controlla_glifi.py                               # ogni carattere esiste nei font
 xvfb-run godot --path . -s tests/tocco.gd                     # tocco su iPad e mouse sulla mappa
 xvfb-run godot --path . -s tests/foto_fx.gd -- reborn /tmp/fx                  # jetpack, spari, bombe
+xvfb-run godot --path . -s tests/foto_unita.gd -- 38 A /tmp/u.png 3.2         # primo piano delle miniature
+xvfb-run godot --path . -s tests/foto_miniature.gd                         # tutte le miniature in fila
 xvfb-run godot --path . -s tests/foto_citta.gd -- -3.5 7.9 9 -1.52 0 originale /tmp/c.png   # una zona della mappa 3D
 ```
 
