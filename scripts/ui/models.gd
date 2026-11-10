@@ -87,12 +87,12 @@ static func build(race: String, kind: String, side_col: Color) -> Node3D:
 				_dinkblog(body)
 			_:
 				_build_code(body, race, kind)
-	# base del lato
-	var ring := _mesh(_cyl(0.3, 0.32, 0.04, 20), mat(side_col, 0.2, 0.4, 0.4), Vector3(0, 0.02, 0))
-	ring.name = "basetta"
+	# base del lato solo per piattaforme e basi (le miniature hanno il cerchio colorato a terra)
 	if kind in ["pl", "base"]:
+		var ring := _mesh(_cyl(0.3, 0.32, 0.04, 20), mat(side_col, 0.2, 0.4, 0.4), Vector3(0, 0.02, 0))
+		ring.name = "basetta"
 		ring.scale = Vector3(1.6, 1, 1.6)
-	root.add_child(ring)
+		root.add_child(ring)
 	return root
 
 
@@ -165,7 +165,7 @@ static func model(name: String, h: float) -> Node3D:
 	holder.add_child(inst)
 	inst.scale = Vector3.ONE * k
 	var c := box.get_center()
-	inst.position = Vector3(-c.x * k, -box.position.y * k + 0.04, -c.z * k)
+	inst.position = Vector3(-c.x * k, -box.position.y * k, -c.z * k)
 	return holder
 
 

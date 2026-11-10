@@ -44,9 +44,10 @@ var place_item := ""              # schieramento: id unità, "c<i>", "m<i>"
 var dep := {}                     # schieramento in costruzione
 var my_seats: Array = []          # lati giocati su questo dispositivo
 var last_hover := -1
-var replay_i := -1
+var replay_i := -1               # momento del replay mostrato
 var replay_play := false
 var _replay_t := 0.0
+var _replay_g: Array = []        # momenti contemporanei: [primo evento, ultimo, tipo, durata]
 
 
 func _ready() -> void:
@@ -1490,12 +1491,60 @@ func _on_end(res: Dictionary) -> void:
 	r.add_child(b4)
 
 
+## Raggruppa la storia della partita in momenti contemporanei: i passi di tutte le unità che muovono
+## insieme, tutti i colpi di una fase di fuoco, tutte le esplosioni di una detonazione. Gli eventi minori
+## (crateri, fumo, civili...) si aggiungono al momento in cui accadono.
+func _replay_groups() -> Array:
+	var out: Array = []
+	var cur: Array = []
+	var cat := ""
+	var moved := {}
+	for i in eng.history.size():
+		var seg: Dictionary = eng.history[i]
+		var k: String = seg["k"]
+		var c := "altro"
+		if k in ["move", "hm_move"]:
+			c = "mv"
+		elif k in ["fire", "orbital_laser", "launch", "intercept"]:
+			c = "fuoco"
+		elif k in ["blast", "orbital", "scatter", "dead"]:
+			c = "boom"
+		var new_group := false
+		if not cur.is_empty():
+			if c != "altro" and cat != "altro" and c != cat:
+				new_group = true
+			elif c == "mv" and cat == "mv" and moved.has(str(seg.get("id", ""))):
+				new_group = true
+			else:
+				var first: Dictionary = eng.history[cur[0]]
+				if first["turn"] != seg["turn"] or first["stage"] != seg["stage"] or first["phase"] != seg["phase"]:
+					new_group = true
+		if new_group:
+			out.append([cur[0], cur[cur.size() - 1], cat])
+			cur = []
+			moved = {}
+			cat = ""
+		cur.append(i)
+		if cat == "" or cat == "altro":
+			cat = c
+		if c == "mv":
+			moved[str(seg.get("id", ""))] = true
+	if not cur.is_empty():
+		out.append([cur[0], cur[cur.size() - 1], cat])
+	for g in out:
+		g.append({"mv": 0.45, "fuoco": 0.9, "boom": 1.1}.get(g[2], 0.3))
+	return out
+
+
 func _start_replay() -> void:
 	if is_instance_valid(end_panel):
 		end_panel.queue_free()
 	board.viewer = -1
+	_replay_g = _replay_groups()
 	replay_i = 0
 	replay_play = true
+	_replay_t = 0.0
+	board.replay_smooth = true
 	replay_bar = PanelContainer.new()
 	replay_bar.add_theme_stylebox_override("panel", UI.panel_style(0.97))
 	replay_bar.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
@@ -1515,12 +1564,13 @@ func _start_replay() -> void:
 	hb.add_child(bp)
 	var sl := HSlider.new()
 	sl.min_value = 0
-	sl.max_value = eng.history.size() - 1
+	sl.max_value = maxi(_replay_g.size() - 1, 0)
 	sl.custom_minimum_size = Vector2(300, 40)
 	sl.name = "cursore"
 	sl.value_changed.connect(func(v):
 		replay_i = int(v)
-		_show_replay())
+		_replay_t = 0.0
+		_show_replay(false))
 	hb.add_child(sl)
 	var lb := UI.label("", 16)
 	lb.name = "dove"
@@ -1530,6 +1580,7 @@ func _start_replay() -> void:
 	bx.pressed.connect(func():
 		replay_play = false
 		replay_i = -1
+		board.replay_smooth = false
 		board.show_snapshot(null)
 		replay_bar.queue_free()
 		replay_bar = null
@@ -1538,28 +1589,45 @@ func _start_replay() -> void:
 	_show_replay()
 
 
-func _show_replay() -> void:
-	if replay_i < 0 or replay_i >= eng.history.size():
+## mostra un momento del replay: tutte le unità vanno insieme alla posizione finale del momento e gli
+## effetti partono quasi insieme (con un piccolo sfasamento, come nel gioco simultaneo)
+func _show_replay(fx := true) -> void:
+	if replay_i < 0 or replay_i >= _replay_g.size():
 		return
-	var seg: Dictionary = eng.history[replay_i]
-	board.show_snapshot(seg["s"])
+	var g: Array = _replay_g[replay_i]
+	var last: Dictionary = eng.history[g[1]]
+	var first: Dictionary = eng.history[g[0]]
+	board.replay_time = float(g[3])
+	board.show_snapshot(last["s"])
 	if is_instance_valid(replay_bar):
 		var lb: Label = replay_bar.find_child("dove", true, false)
 		if lb != null:
-			lb.text = "Turno %d, stadio %d" % [seg["turn"], seg["stage"]] if seg["turn"] > 0 else "Schieramento"
+			lb.text = "Turno %d, stadio %d" % [first["turn"], first["stage"]] if first["turn"] > 0 else "Schieramento"
 		var sl: HSlider = replay_bar.find_child("cursore", true, false)
 		if sl != null and int(sl.value) != replay_i:
 			sl.set_value_no_signal(replay_i)
-	if seg["k"] in ["fire", "launch", "blast", "orbital", "orbital_laser", "dead", "teleport"]:
-		board.play_fx(seg["k"], seg, 1.5)
+	if not fx:
+		return
+	var n := 0
+	for i in range(g[0], g[1] + 1):
+		var seg: Dictionary = eng.history[i]
+		if seg["k"] in ["fire", "launch", "blast", "orbital", "orbital_laser", "dead", "teleport"]:
+			var delay := 0.0 if n == 0 else randf_range(0.0, 0.3)
+			n += 1
+			if delay <= 0.0:
+				board.play_fx(seg["k"], seg, 1.3)
+			else:
+				var tw := create_tween()
+				tw.tween_interval(delay)
+				tw.tween_callback(board.play_fx.bind(seg["k"], seg, 1.3))
 
 
 func _process(dt: float) -> void:
-	if replay_i >= 0 and replay_play:
+	if replay_i >= 0 and replay_play and not _replay_g.is_empty():
 		_replay_t += dt
-		if _replay_t > 0.18:
+		if _replay_t >= float(_replay_g[replay_i][3]):
 			_replay_t = 0.0
-			if replay_i < eng.history.size() - 1:
+			if replay_i < _replay_g.size() - 1:
 				replay_i += 1
 				_show_replay()
 			else:

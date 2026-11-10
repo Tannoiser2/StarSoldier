@@ -47,6 +47,9 @@ var hover_h := -1
 var input_locked := false
 var show_labels := true
 var snap = null                  # istantanea mostrata (replay) oppure null = stato attuale
+var replay_smooth := false      # nel replay le unità scivolano a velocità costante
+var replay_time := 0.45          # durata di un momento del replay
+var unit_speed := {}
 var gui_hit: Callable            # la vista dice se un punto dello schermo è sopra un suo pannello
 var terr: SSTerrain               # rilievo del terreno
 
@@ -203,7 +206,10 @@ func _process(dt: float) -> void:
 			continue
 		var goal: Vector3 = unit_goal.get(id, n.position)
 		var step := goal - n.position
-		n.position = n.position.lerp(goal, minf(1.0, dt * 7.0))
+		if replay_smooth:
+			n.position = n.position.move_toward(goal, float(unit_speed.get(id, 4.0)) * dt)
+		else:
+			n.position = n.position.lerp(goal, minf(1.0, dt * 7.0))
 		# la miniatura si gira verso dove va
 		if style == "reborn" and Vector2(step.x, step.z).length() > 0.05:
 			var v: Node3D = n.get_node_or_null("vis")
@@ -623,7 +629,9 @@ func _refresh_units() -> void:
 			var n: Node3D = unit_nodes.get(id, null)
 			var want_air: bool = st["alt"] > 0
 			var sig := "%s|%d|%s" % [style, st["alt"], "1" if (st["hidden"] and u["side"] == viewer) else "0"]
+			var keep_pos = null
 			if n != null and n.get_meta("sig", "") != sig:
+				keep_pos = n.position
 				n.queue_free()
 				n = null
 			if n == null:
@@ -631,17 +639,20 @@ func _refresh_units() -> void:
 				n.set_meta("sig", sig)
 				units_root.add_child(n)
 				unit_nodes[id] = n
-				n.position = _unit_pos(st["h"], st["alt"], i, ids.size())
+				n.position = keep_pos if keep_pos != null else _unit_pos(st["h"], st["alt"], i, ids.size())
 			if want_air:
 				n.set_meta("air", true)
 			elif n.has_meta("air"):
 				n.remove_meta("air")
-			unit_goal[id] = _unit_pos(st["h"], st["alt"], i, ids.size())
+			var goal := _unit_pos(st["h"], st["alt"], i, ids.size())
+			# velocità per arrivare in tempo alla fine del momento del replay
+			unit_speed[id] = maxf(n.position.distance_to(goal) / maxf(replay_time * 0.85, 0.05), 0.5)
+			unit_goal[id] = goal
 			var lab: Label3D = n.get_node_or_null("etichetta")
 			if lab != null:
 				lab.text = "%s · %d" % [_short(u), st["tpa"]] if u["kind"] != "dink" else "Dinkblog"
 				lab.visible = show_labels
-				lab.modulate = Color.WHITE if id != selected else Color("#ffd27a")
+				lab.modulate = _side_label_color(u["side"]) if id != selected else Color("#ffd27a")
 			var sel := n.get_node_or_null("selezione")
 			if sel != null:
 				sel.visible = id == selected
@@ -729,9 +740,23 @@ func _unit_node(u: Dictionary, st: Dictionary) -> Node3D:
 		vis.rotation.y = PI / 2.0 if u["side"] == 0 else -PI / 2.0
 	# in volo: fiamma e fumo del jetpack (i Rame hanno la propulsione azzurra)
 	if air and u["kind"] in ["ss", "hw", "an"]:
-		var jp := SSFx.jetpack(Color("#ff8a2a") if u["race"] != "r" else Color("#6ad8ff"))
-		jp.position.y = 0.0 if style == "originale" else 0.12
-		root.add_child(jp)
+		var jcol := Color("#ff8a2a") if u["race"] != "r" else Color("#6ad8ff")
+		if style == "originale":
+			root.add_child(SSFx.jetpack(jcol))
+		else:
+			# due ugelli sulla schiena della miniatura, inclinati all'indietro; girano con lei
+			# (agganciati al corpo, così ondeggiano insieme in volo)
+			var body: Node3D = vis.get_node_or_null("corpo")
+			var par: Node3D = body if body != null else vis
+			var k := par.scale.x
+			for sx in [-0.05, 0.05]:
+				var jp := SSFx.jetpack(jcol)
+				jp.scale = Vector3.ONE * 0.6 / k
+				jp.position = Vector3(sx, 0.36 if u["race"] != "r" else 0.2, -0.09) / k
+				jp.rotation.x = 0.35
+				par.add_child(jp)
+	if style == "reborn":
+		root.add_child(_ground_circle(u, st["alt"]))
 	var sel := _ring_mesh(Color("#ffd27a"), 0.08)
 	sel.name = "selezione"
 	sel.scale = Vector3(0.7, 1, 0.7)
@@ -748,10 +773,33 @@ func _unit_node(u: Dictionary, st: Dictionary) -> Node3D:
 	lab.font_size = 17
 	lab.outline_size = 6
 	lab.outline_modulate = Color(0, 0, 0, 0.85)
-	lab.position = Vector3(0, 0.62 if style == "reborn" else 0.32, 0)
+	lab.position = Vector3(0, 0.8 if style == "reborn" else 0.5, 0)
 	lab.render_priority = 3
 	root.add_child(lab)
 	return root
+
+
+## colore delle etichette: quello del lato, schiarito per leggersi sulla mappa
+func _side_label_color(side: int) -> Color:
+	return UI.side_color(side).lightened(0.35)
+
+
+## cerchio tenue del colore del lato, a terra sotto l'unità (anche quando vola)
+func _ground_circle(u: Dictionary, alt: int) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	mi.name = "cerchio"
+	var pm := PlaneMesh.new()
+	pm.size = Vector2(0.8, 0.8)
+	mi.mesh = pm
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.albedo_texture = SSFx.soft_tex()
+	m.albedo_color = Color(UI.side_color(u["side"]).lightened(0.1), 0.85)
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	mi.material_override = m
+	mi.position.y = -float(ALT_Y[alt]) + 0.03
+	return mi
 
 
 func _stem(n: Node3D, alt: int) -> void:
@@ -788,7 +836,8 @@ func _stem(n: Node3D, alt: int) -> void:
 	sm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	sm.albedo_color = Color(0, 0, 0, 0.35)
 	sh.material_override = sm
-	s.add_child(sh)
+	if style != "reborn":
+		s.add_child(sh)
 	n.add_child(s)
 
 
